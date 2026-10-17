@@ -12,15 +12,15 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
   const displayDocId = normalizeDocumentId(quotation.id || quotation.docNumber, quotation.date);
 
   // Client Details resolution
-  const clientName = quotation.clientName || clientOrLead?.companyName || clientOrLead?.name || 'Tarang Solar Systems';
-  const clientAddress = quotation.address || clientOrLead?.address || 'Plot no. 69 Sitanagar near Dhawad Polytechnic College Wardha road Nagpur 440025';
-  const clientEmail = quotation.email || clientOrLead?.email || 'info@tarangsolarsystems.com';
-  const clientPhone = quotation.phone || clientOrLead?.phone || '+91 8830487351';
-  const docDate = formatDateDMY(quotation.date) || '05-09-2026';
+  const clientName = quotation.clientName || clientOrLead?.companyName || clientOrLead?.name || 'Valued Client';
+  const clientAddress = quotation.address || clientOrLead?.address || '';
+  const clientEmail = quotation.email || clientOrLead?.email || '';
+  const clientPhone = quotation.phone || clientOrLead?.phone || '';
+  const docDate = formatDateDMY(quotation.date) || formatDateDMY(new Date().toISOString().split('T')[0]);
 
   // Calculations
-  const totalAmount = Number(quotation.total) || (quotation.items ? quotation.items.reduce((s, i) => s + (Number(i.rate) * Number(i.qty || 1)), 0) : 30000);
-  const advancePaid = quotation.advancePaid !== undefined ? Number(quotation.advancePaid) : (isInvoice ? 14000 : 0);
+  const totalAmount = Number(quotation.total) || (quotation.items ? quotation.items.reduce((s, i) => s + (Number(i.rate) * Number(i.qty || 1)), 0) : 0);
+  const advancePaid = quotation.advancePaid !== undefined ? Number(quotation.advancePaid) : 0;
   const remaining = quotation.remaining !== undefined ? Number(quotation.remaining) : (totalAmount - advancePaid);
 
   const formatINR = (val) => {
@@ -225,40 +225,40 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-sm">
-      <div className="relative w-full max-w-4xl overflow-hidden border border-slate-800 bg-slate-900 rounded-2xl shadow-2xl animate-[scaleUp_0.25s_ease-out] flex flex-col max-h-[94vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/50 backdrop-blur-sm">
+      <div className="relative w-full max-w-4xl overflow-hidden border border-slate-200 bg-white rounded-2xl shadow-2xl animate-[scaleUp_0.25s_ease-out] flex flex-col max-h-[94vh]">
         
         {/* Modal Top Bar */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-800 bg-slate-950/50 text-slate-100">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-slate-50/80 text-slate-900">
           <div className="flex items-center gap-3">
             <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold uppercase tracking-wider ${
-              isInvoice ? 'bg-amber-500/10 text-amber-400 border border-amber-500/25' : 'bg-brand-500/10 text-brand-400 border border-brand-500/25'
+              isInvoice ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-orange-50 text-orange-600 border border-orange-200'
             }`}>
               {docTitle} Document
             </span>
-            <span className="font-mono font-bold text-xs text-slate-300">{displayDocId}</span>
+            <span className="font-mono font-bold text-xs text-slate-700">{displayDocId}</span>
           </div>
 
           <div className="flex items-center gap-2">
             <button
               onClick={handleCopyJSON}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700/80 border border-slate-700 rounded-xl transition-all"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl transition-all cursor-pointer shadow-2xs"
               title="Copy JSON Payload"
             >
-              {copiedJSON ? <Check className="w-3.5 h-3.5 text-brand-400" /> : <Copy className="w-3.5 h-3.5" />}
+              {copiedJSON ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5 text-slate-500" />}
               <span>{copiedJSON ? 'Copied JSON' : 'Copy JSON'}</span>
             </button>
 
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-950 bg-brand-400 hover:bg-brand-500 rounded-xl hover-scale transition-all shadow-md shadow-brand-500/10"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale transition-all shadow-xs cursor-pointer"
             >
               <Printer className="w-3.5 h-3.5" />
               <span>Print / Save PDF (A4)</span>
             </button>
             <button 
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800 transition-colors"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -266,7 +266,7 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
         </div>
 
         {/* Printable PDF Render Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-900/60 flex justify-center">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-100/90 flex justify-center">
           <div 
             id="quotation-print-area" 
             className="w-full max-w-[760px] bg-white text-slate-900 p-8 sm:p-10 shadow-2xl rounded-sm font-sans text-[11px] leading-[1.4]"

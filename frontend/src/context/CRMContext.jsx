@@ -1,4 +1,17 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { 
+  subscribeCollection, 
+  saveFirestoreDoc, 
+  deleteFirestoreDoc, 
+  seedCollectionIfEmpty,
+  findEmployeeByEmail
+} from '../services/crmService';
+import { 
+  loginWithEmail, 
+  registerWithEmail,
+  logoutUser, 
+  subscribeToAuth 
+} from '../services/authService';
 
 const CRMContext = createContext();
 
@@ -15,6 +28,24 @@ export const formatDateDMY = (dateStr) => {
     return `${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[2]}`;
   }
   return dateStr;
+};
+
+// Helper: Normalize Phone Number (Removes non-digits, strips +91, 91, or leading 0 for uniform comparison)
+export const normalizePhoneNumber = (rawPhone) => {
+  if (!rawPhone) return '';
+  let digits = String(rawPhone).trim().replace(/[^0-9]/g, '');
+  if (digits.length >= 12 && digits.startsWith('91')) digits = digits.slice(2);
+  if (digits.length >= 11 && digits.startsWith('0')) digits = digits.slice(1);
+  return digits;
+};
+
+// Helper: Format Phone Number for Display
+export const formatPhoneForDisplay = (rawPhone) => {
+  const norm = normalizePhoneNumber(rawPhone);
+  if (norm.length === 10) {
+    return `+91 ${norm.slice(0, 5)} ${norm.slice(5)}`;
+  }
+  return rawPhone || '';
 };
 
 // Helper: Extract DDMMYY accurately from any date format (YYYY-MM-DD, DD-MM-YYYY, or Date)
@@ -133,52 +164,61 @@ export const normalizeDocumentId = (id, dateStr) => {
   return syncDocIdWithDate(id, dateStr, false);
 };
 
-// Seed Mock Data Helper with auto-migration of legacy QT- IDs
-const getInitialData = (key, fallback) => {
+// Known dummy/mock IDs to permanently remove from system
+export const DUMMY_SEED_IDS = new Set([
+  // Employees
+  'EMP-101', 'EMP-102', 'EMP-103',
+  // Leads
+  'L-101', 'L-102', 'L-103', 'L-104',
+  // Clients
+  'C-101', 'C-102', 'C-103',
+  // Quotations
+  'SETU-310826057', 'SETU-050926059', 'QT-1001', 'QT-1002', 'QT-1003',
+  // Payments
+  'P-201', 'P-202', 'P-203',
+  // Follow-ups
+  'FU-101', 'FU-102', 'FU-103',
+  // Reminders
+  'REM-301', 'REM-302', 'REM-303', 'REM-304',
+  // WhatsApp Logs
+  'WA-401', 'WA-402', 'WA-403', 'WA-404', 'WA-405', 'WA-406', 'WA-407', 'WA-408', 'WA-409', 'WA-410'
+]);
+
+// Master Super Admin email identifier
+export const SUPER_ADMIN_EMAIL = 'admin@setusolution.com';
+
+export const isSuperAdminEmail = (email) => {
+  if (!email) return false;
+  return String(email).trim().toLowerCase() === SUPER_ADMIN_EMAIL;
+};
+
+// Helper to filter out dummy data from any array
+export const filterOutDummyData = (items) => {
+  if (!Array.isArray(items)) return [];
+  return items.filter(item => item && !DUMMY_SEED_IDS.has(item.id) && item.email?.toLowerCase().trim() !== SUPER_ADMIN_EMAIL);
+};
+
+// Seed Mock Data Helper with auto-migration of legacy QT- IDs and dummy data filtering
+const getInitialData = (key, fallback = []) => {
   const data = localStorage.getItem(`setu_crm_${key}`);
   if (!data) return fallback;
   try {
     const parsed = JSON.parse(data);
-    // Migrate any legacy QT- IDs in quotations
-    if (key === 'quotations' && Array.isArray(parsed)) {
-      return parsed.map((q, idx) => {
-        const qDate = q.date || '2026-09-05';
-        const normId = normalizeDocumentId(q.id, qDate);
-        return {
-          ...q,
-          id: normId,
-          docNumber: normId
-        };
-      });
-    }
-    // Migrate any legacy QT- IDs in lead.quotation
-    if (key === 'leads' && Array.isArray(parsed)) {
-      return parsed.map((lead, idx) => {
-        if (lead.quotation) {
-          const q = lead.quotation;
-          const qDate = q.date || lead.createdDate || '2026-09-05';
-          const normId = normalizeDocumentId(q.id || q.docNumber, qDate);
+    if (Array.isArray(parsed)) {
+      const cleanList = filterOutDummyData(parsed);
+      // Migrate any legacy QT- IDs in quotations
+      if (key === 'quotations') {
+        return cleanList.map((q) => {
+          const qDate = q.date || '2026-09-05';
+          const normId = normalizeDocumentId(q.id, qDate);
           return {
-            ...lead,
-            quotation: {
-              ...q,
-              id: normId,
-              docNumber: normId
-            }
+            ...q,
+            id: normId,
+            docNumber: normId
           };
-        }
-        return lead;
-      });
-    }
-    // Migrate any legacy QT- IDs in payments
-    if (key === 'payments' && Array.isArray(parsed)) {
-      return parsed.map((p, idx) => {
-        if (p.quotationId && (!p.quotationId.startsWith('SETU-') || p.quotationId.startsWith('QT-'))) {
-          const serial = String(59 + idx).padStart(3, '0');
-          return { ...p, quotationId: `SETU-050926${serial}` };
-        }
-        return p;
-      });
+        });
+      }
+      return cleanList;
     }
     return parsed;
   } catch (e) {
@@ -195,242 +235,391 @@ const defaultTemplates = [
 ];
 
 export const CRMProvider = ({ children }) => {
-  // 1. Core State
-  const [currentUser, setCurrentUser] = useState(getInitialData('current_user', { name: 'Siddharth Shah', role: 'Admin' })); // Roles: Admin, Staff
+  // 1. Firebase Authentication State (Super Admin & Employees)
+  const [authUser, setAuthUser] = useState(null);
+  const [currentUser, setCurrentUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState('');
+
+  // 1.1 Employees State (Clean empty initial state without dummy data)
+  const [employees, setEmployees] = useState(() => getInitialData('employees', []));
+
+  // Purge any residual dummy records from browser LocalStorage
+  useEffect(() => {
+    ['leads', 'clients', 'quotations', 'payments', 'employees', 'reminders', 'whatsapp_logs', 'followups', 'expenses', 'cold_leads'].forEach(key => {
+      const raw = localStorage.getItem(`setu_crm_${key}`);
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            const cleaned = filterOutDummyData(parsed);
+            if (cleaned.length !== parsed.length) {
+              localStorage.setItem(`setu_crm_${key}`, JSON.stringify(cleaned));
+            }
+          }
+        } catch (e) {}
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    const unsubAuth = subscribeToAuth(async (user) => {
+      if (user) {
+        setAuthUser(user);
+        const cleanEmail = user.email ? user.email.toLowerCase().trim() : '';
+
+        // Master Super Admin Account Explicit Check
+        if (cleanEmail === SUPER_ADMIN_EMAIL) {
+          setCurrentUser({
+            uid: user.uid,
+            email: user.email,
+            name: 'SETU Super Admin',
+            role: 'Super Admin',
+            position: 'Super Admin',
+            department: 'Executive Management',
+            permissions: ['*']
+          });
+          setAuthLoading(false);
+          return;
+        }
+
+        const emp = await findEmployeeByEmail(cleanEmail);
+        
+        if (emp) {
+          if (emp.status === 'Inactive') {
+            await logoutUser();
+            setAuthUser(null);
+            setCurrentUser(null);
+            setAuthError('Your employee account has been deactivated by the Super Admin.');
+            setAuthLoading(false);
+            return;
+          }
+          setCurrentUser({
+            uid: user.uid,
+            email: user.email,
+            name: emp.name,
+            role: emp.role || 'Staff',
+            position: emp.position,
+            department: emp.department,
+            permissions: emp.permissions || ['dashboard', 'leads', 'clients', 'quotations', 'payments', 'expenses'],
+            employeeId: emp.id
+          });
+        } else {
+          // Super Admin Account (Firebase Console Admin)
+          const namePart = user.displayName || (user.email ? user.email.split('@')[0] : 'Super Admin');
+          setCurrentUser({
+            uid: user.uid,
+            email: user.email,
+            name: namePart.charAt(0).toUpperCase() + namePart.slice(1),
+            role: 'Super Admin',
+            permissions: ['*']
+          });
+        }
+      } else {
+        setAuthUser(null);
+        setCurrentUser(null);
+      }
+      setAuthLoading(false);
+    });
+
+    return () => unsubAuth();
+  }, []);
+
+  const login = async (email, password) => {
+    setAuthError('');
+    const cleanEmail = String(email).trim().toLowerCase();
+
+    // Verify employee status before login (skip for master Super Admin)
+    if (cleanEmail !== SUPER_ADMIN_EMAIL) {
+      const emp = await findEmployeeByEmail(cleanEmail);
+      if (emp) {
+        if (emp.status === 'Inactive') {
+          return { 
+            success: false, 
+            error: 'Your employee account has been deactivated by Super Admin. Please contact administration.' 
+          };
+        }
+        if (emp.status === 'Pending Password Setup') {
+          return { 
+            success: false, 
+            error: 'First-time password setup is pending! Please click "First-Time Account Setup" below to create your password.' 
+          };
+        }
+      }
+    }
+
+    const res = await loginWithEmail(cleanEmail, password);
+    if (res.error) {
+      setAuthError(res.error);
+      return { success: false, error: res.error };
+    }
+    return { success: true, user: res.user };
+  };
+
+  const logout = async () => {
+    await logoutUser();
+    setAuthUser(null);
+    setCurrentUser(null);
+  };
+
+  // 1.2 First-Time Password Setup Functions
+  const verifyEmployeeForSetup = async (email) => {
+    if (!email || !email.includes('@')) {
+      return { eligible: false, error: 'Please enter a valid email address.' };
+    }
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (cleanEmail === SUPER_ADMIN_EMAIL) {
+      return { 
+        eligible: false, 
+        error: 'admin@setusolution.com is the master Super Admin account. Please sign in directly via the Sign In tab.' 
+      };
+    }
+
+    // 1. Check in-memory employees state first
+    let emp = (employees || []).find(e => e.email && e.email.trim().toLowerCase() === cleanEmail);
+
+    // 2. Check localStorage (persisted employees list)
+    if (!emp) {
+      try {
+        const raw = localStorage.getItem('setu_crm_employees');
+        if (raw) {
+          const list = JSON.parse(raw);
+          if (Array.isArray(list)) {
+            emp = list.find(e => e.email && e.email.trim().toLowerCase() === cleanEmail);
+          }
+        }
+      } catch (e) {}
+    }
+
+    // 3. Check Cloud Firestore (for remote/cross-device verification)
+    if (!emp) {
+      emp = await findEmployeeByEmail(cleanEmail);
+    }
+
+    if (!emp) {
+      return { 
+        eligible: false, 
+        error: 'No employee record found with this email. Please request your Super Admin to register your account.' 
+      };
+    }
+    if (emp.status === 'Inactive') {
+      return { 
+        eligible: false, 
+        error: 'This employee account has been deactivated by Super Admin. Please contact administration.' 
+      };
+    }
+    if (emp.status === 'Active') {
+      return { 
+        eligible: false, 
+        error: 'Password already configured! Please sign in using your existing password on the Sign In tab.' 
+      };
+    }
+    if (emp.status === 'Pending Password Setup') {
+      return { eligible: true, employee: emp };
+    }
+    return { eligible: false, error: 'Account is not eligible for initial setup.' };
+  };
+
+  const completeEmployeePasswordSetup = async (email, password) => {
+    const cleanEmail = email.trim().toLowerCase();
+    const check = await verifyEmployeeForSetup(cleanEmail);
+    if (!check.eligible) {
+      return { success: false, error: check.error };
+    }
+    const emp = check.employee;
+
+    // 1. Create user in Firebase Auth
+    const regResult = await registerWithEmail(cleanEmail, password, emp.name);
+    if (regResult.error) {
+      if (regResult.error.includes('auth/email-already-in-use')) {
+        const logRes = await loginWithEmail(cleanEmail, password);
+        if (logRes.error) {
+          return { success: false, error: 'An authentication record already exists for this email with a different password. Please contact Super Admin.' };
+        }
+      } else {
+        return { success: false, error: regResult.error };
+      }
+    }
+
+    // 2. Mark account as Active in Firestore and LocalStorage
+    const updatedEmp = {
+      ...emp,
+      status: 'Active',
+      activatedAt: new Date().toISOString(),
+      setupToken: null
+    };
+
+    // Update local state and localStorage immediately
+    setEmployees(prev => {
+      const next = prev.map(e => e.id === emp.id ? updatedEmp : e);
+      try {
+        localStorage.setItem('setu_crm_employees', JSON.stringify(next));
+      } catch (e) {}
+      return next;
+    });
+
+    setCurrentUser({
+      uid: regResult.user?.uid || emp.id,
+      email: cleanEmail,
+      name: emp.name,
+      role: emp.role || 'Staff',
+      position: emp.position,
+      department: emp.department,
+      permissions: emp.permissions || ['dashboard', 'leads', 'clients', 'quotations', 'payments', 'expenses'],
+      employeeId: emp.id
+    });
+
+    await saveFirestoreDoc('employees', emp.id, updatedEmp);
+
+    return { success: true, employee: updatedEmp };
+  };
   
-  const [leads, setLeads] = useState(() => getInitialData('leads', [
-    {
-      id: 'L-101',
-      name: 'TARANG SOLAR SYSTEMS',
-      phone: '+91 8830487351',
-      email: 'info@tarangsolarsystems.com',
-      address: 'Plot no. 69 Sitanagar near Dhawad Polytechnic College Wardha road Nagpur 440025',
-      source: 'Website',
-      notes: 'Interested in Solar Business Management software and Employee Tracking Android App.',
-      assignedTo: 'Siddharth Shah',
-      status: 'Quoted',
-      createdDate: '2026-08-31',
-      quotation: {
-        id: 'SETU-310826057',
-        docType: 'Quotation',
-        docNumber: 'SETU-310826057',
-        date: '2026-08-31',
-        clientName: 'TARANG SOLAR SYSTEMS',
-        address: 'Plot no. 69 Sitanagar near Dhawad Polytechnic College Wardha road Nagpur 440025',
-        phone: '+91 8830487351',
-        email: 'info@tarangsolarsystems.com',
-        items: [
-          { description: 'Project Cost (Solar Business Management )', breakdown: '30,000', qty: 1, rate: 30000 },
-          { description: 'Employee Tracking Android Application', breakdown: '100 ( per user for month )', qty: 1, rate: 0 }
-        ],
-        total: 30000,
-        advancePaid: 0,
-        remaining: 30000,
-        useGST: false,
-        taxRate: 0,
-        notes: ''
-      }
-    },
-    {
-      id: 'L-102',
-      name: "Tarang Solar System's",
-      phone: '+91 8830487351',
-      email: 'tarangsolar@gmail.com',
-      address: 'Building No.: 69, Sita Nagar Road, Near Satish Bakery, Sita Nagar Nagpur, Maharashtra PIN Code: 440025',
-      source: 'Referral',
-      notes: 'Project Cost (Solar Business Management ,Employee Tracking Android Application) with advance payment.',
-      assignedTo: 'Siddharth Shah',
-      status: 'Won',
-      createdDate: '2026-09-05',
-      quotation: {
-        id: 'SETU-050926059',
-        docType: 'Invoice',
-        docNumber: 'SETU-050926059',
-        date: '2026-09-05',
-        clientName: "Tarang Solar System's",
-        address: 'Building No.: 69, Sita Nagar Road, Near Satish Bakery, Sita Nagar Nagpur, Maharashtra PIN Code: 440025',
-        phone: '+91 8830487351',
-        email: 'tarangsolar@gmail.com',
-        items: [
-          { description: 'Project Cost (Solar Business Management ,Employee Tracking Android Application)', breakdown: '30,000', qty: 1, rate: 30000 }
-        ],
-        total: 30000,
-        advancePaid: 14000,
-        remaining: 16000,
-        useGST: false,
-        taxRate: 0,
-        notes: ''
-      }
-    },
-    {
-      id: 'L-103',
-      name: 'Rajesh Kumar',
-      phone: '9876543210',
-      email: 'rajesh@kumartech.in',
-      address: 'Office 402, Tech Park, IT Corridor, Nagpur, 440010',
-      source: 'Website',
-      notes: 'Interested in bespoke ERP development. Budget around 5L.',
-      assignedTo: 'Siddharth Shah',
-      status: 'New',
-      createdDate: '2026-06-10',
-      quotation: null
-    },
-    {
-      id: 'L-104',
-      name: 'Priya Sharma',
-      phone: '9123456789',
-      email: 'priya@sharmadesign.co',
-      address: '12-B, Green View Avenue, Nagpur, 440015',
-      source: 'Referral',
-      notes: 'Needs an e-commerce platform with Shopify integration.',
-      assignedTo: 'Siddharth Shah',
-      status: 'Contacted',
-      createdDate: '2026-06-12',
-      quotation: null
-    }
-  ]));
-
-  const [clients, setClients] = useState(() => getInitialData('clients', [
-    {
-      id: 'C-101',
-      name: "Tarang Solar System's",
-      phone: '+91 8830487351',
-      email: 'tarangsolar@gmail.com',
-      companyName: "Tarang Solar System's",
-      address: 'Building No.: 69, Sita Nagar Road, Near Satish Bakery, Sita Nagar Nagpur, Maharashtra PIN Code: 440025',
-      source: 'Referral',
-      notes: 'Solar Business Management and Android Tracking Application.',
-      convertedDate: '2026-09-05'
-    },
-    {
-      id: 'C-102',
-      name: 'Sunita Rao',
-      phone: '9876123450',
-      email: 'sunita@raosolutions.com',
-      companyName: 'Rao IT Solutions',
-      address: 'Plot 45, MIDC Industrial Area, Hingna, Nagpur 440028',
-      source: 'Referral',
-      notes: 'Legacy system cloud migration. Won from previous lead pipeline.',
-      convertedDate: '2026-05-20'
-    },
-    {
-      id: 'C-103',
-      name: 'Deepak Gupta',
-      phone: '9345678901',
-      email: 'deepak@guptafoundation.org',
-      companyName: 'Gupta Foundation',
-      address: '77, Civil Lines, Near High Court, Nagpur 440001',
-      source: 'Website',
-      notes: 'Custom NGO donor management system.',
-      convertedDate: '2026-04-15'
-    }
-  ]));
-
-  const [quotations, setQuotations] = useState(() => getInitialData('quotations', [
-    {
-      id: 'SETU-310826057',
-      docType: 'Quotation',
-      docNumber: 'SETU-310826057',
-      title: 'Solar Business Management & Employee Tracking',
-      clientOrLeadId: 'L-101',
-      type: 'lead',
-      date: '2026-08-31',
-      status: 'Sent',
-      address: 'Plot no. 69 Sitanagar near Dhawad Polytechnic College Wardha road Nagpur 440025',
-      items: [
-        { description: 'Project Cost (Solar Business Management )', breakdown: '30,000', qty: 1, rate: 30000 },
-        { description: 'Employee Tracking Android Application', breakdown: '100 ( per user for month )', qty: 1, rate: 0 }
-      ],
-      useGST: false,
-      taxRate: 0,
-      total: 30000,
-      advancePaid: 0,
-      remaining: 30000,
-      notes: ''
-    },
-    {
-      id: 'SETU-050926059',
-      docType: 'Invoice',
-      docNumber: 'SETU-050926059',
-      title: 'Solar Business Management ,Employee Tracking Android Application',
-      clientOrLeadId: 'C-101',
-      type: 'client',
-      date: '2026-09-05',
-      status: 'Accepted',
-      address: 'Building No.: 69, Sita Nagar Road, Near Satish Bakery, Sita Nagar Nagpur, Maharashtra PIN Code: 440025',
-      items: [
-        { description: 'Project Cost (Solar Business Management ,Employee Tracking Android Application)', breakdown: '30,000', qty: 1, rate: 30000 }
-      ],
-      useGST: false,
-      taxRate: 0,
-      total: 30000,
-      advancePaid: 14000,
-      remaining: 16000,
-      notes: ''
-    }
-  ]));
-
-  const [payments, setPayments] = useState(() => getInitialData('payments', [
-    {
-      id: 'P-201',
-      clientId: 'C-101',
-      quotationId: 'SETU-050926059',
-      totalAmount: 159300,
-      status: 'Partial', // Pending, Partial, Paid in Full
-      instalments: [
-        { id: 'INST-01', amount: 79650, dueDate: '2026-06-08', paidDate: '2026-06-08', status: 'Paid' },
-        { id: 'INST-02', amount: 79650, dueDate: '2026-06-30', paidDate: null, status: 'Pending' }
-      ]
-    },
-    {
-      id: 'P-202',
-      clientId: 'C-102',
-      quotationId: 'SETU-310826057',
-      totalAmount: 283200,
-      status: 'Paid in Full',
-      instalments: [
-        { id: 'INST-03', amount: 141600, dueDate: '2026-05-25', paidDate: '2026-05-24', status: 'Paid' },
-        { id: 'INST-04', amount: 141600, dueDate: '2026-06-15', paidDate: '2026-06-15', status: 'Paid' }
-      ]
-    },
-    {
-      id: 'P-203',
-      clientId: 'C-103',
-      quotationId: 'QT-1003',
-      totalAmount: 120000,
-      status: 'Pending',
-      instalments: [
-        { id: 'INST-05', amount: 120000, dueDate: '2026-05-01', paidDate: null, status: 'Pending' }
-      ]
-    }
-  ]));
-
-  const [reminders, setReminders] = useState(() => getInitialData('reminders', [
-    { id: 'REM-301', clientId: 'C-101', clientName: 'Vikram Singh', phone: '9000111222', amount: 79650, dueDate: '2026-06-30', scheduledFor: '2026-06-29', triggerType: '1_day_before', status: 'Pending', sentDate: null },
-    { id: 'REM-302', clientId: 'C-102', clientName: 'Sunita Rao', phone: '9876123450', amount: 141600, dueDate: '2026-06-15', scheduledFor: '2026-06-14', triggerType: '1_day_before', status: 'Sent', sentDate: '2026-06-14' },
-    { id: 'REM-303', clientId: 'C-102', clientName: 'Sunita Rao', phone: '9876123450', amount: 141600, dueDate: '2026-06-15', scheduledFor: '2026-06-15', triggerType: 'due_day', status: 'Sent', sentDate: '2026-06-15' },
-    { id: 'REM-304', clientId: 'C-103', clientName: 'Deepak Gupta', phone: '9345678901', amount: 120000, dueDate: '2026-05-01', scheduledFor: '2026-05-04', triggerType: '3_days_after', status: 'Failed', sentDate: '2026-05-04' }
-  ]));
-
-  const [whatsappLogs, setWhatsappLogs] = useState(() => getInitialData('whatsapp_logs', [
-    { id: 'WA-401', clientPhone: '9000111222', direction: 'outbound', text: 'Hi Vikram Singh, here is your quotation QT-1001 for ₹1,59,300. Click here to review: https://setusolution.com/quote/QT-1001', timestamp: '2026-06-06 14:05:00' },
-    { id: 'WA-402', clientPhone: '9000111222', direction: 'inbound', text: 'Looks perfect Siddharth. Accept the quote.', timestamp: '2026-06-06 15:30:00' },
-    { id: 'WA-403', clientPhone: '9000111222', direction: 'outbound', text: 'Thank you Vikram! We have successfully received your payment of ₹79,650. Outstanding balance: ₹79,650.', timestamp: '2026-06-08 11:20:00' },
-    { id: 'WA-404', clientPhone: '9876123450', direction: 'outbound', text: 'Hi Sunita Rao, here is your quotation QT-1002 for ₹2,83,200. Click here to review: https://setusolution.com/quote/QT-1002', timestamp: '2026-05-21 10:15:00' },
-    { id: 'WA-405', clientPhone: '9876123450', direction: 'outbound', text: 'Dear Sunita Rao, this is a friendly reminder that your payment of ₹1,41,600 is due tomorrow. Please process it. Thank you.', timestamp: '2026-06-14 09:00:00' },
-    { id: 'WA-406', clientPhone: '9876123450', direction: 'outbound', text: 'Dear Sunita Rao, this is a friendly reminder that your payment of ₹1,41,600 is due today. Please process it. Thank you.', timestamp: '2026-06-15 09:00:00' },
-    { id: 'WA-407', clientPhone: '9876123450', direction: 'inbound', text: 'Sent. Please check transaction ID TXN998822.', timestamp: '2026-06-15 10:30:00' },
-    { id: 'WA-408', clientPhone: '9876123450', direction: 'outbound', text: 'Thank you Sunita! We have successfully received your payment of ₹1,41,600. Outstanding balance: ₹0.', timestamp: '2026-06-15 11:00:00' },
-    { id: 'WA-409', clientPhone: '9345678901', direction: 'outbound', text: 'Hi Deepak Gupta, here is your quotation QT-1003 for ₹1,20,000. Click here to review: https://setusolution.com/quote/QT-1003', timestamp: '2026-04-16 11:22:00' },
-    { id: 'WA-410', clientPhone: '9345678901', direction: 'outbound', text: 'Dear Deepak Gupta, this is a friendly reminder that your payment of ₹1,20,000 is overdue by 3 days. Please process it.', timestamp: '2026-05-04 09:00:00' }
-  ]));
-
+  // Clean empty states for production data
+  const [leads, setLeads] = useState(() => getInitialData('leads', []));
+  const [clients, setClients] = useState(() => getInitialData('clients', []));
+  const [quotations, setQuotations] = useState(() => getInitialData('quotations', []));
+  const [payments, setPayments] = useState(() => getInitialData('payments', []));
+  const [reminders, setReminders] = useState(() => getInitialData('reminders', []));
+  const [whatsappLogs, setWhatsappLogs] = useState(() => getInitialData('whatsapp_logs', []));
   const [templates, setTemplates] = useState(() => getInitialData('templates', defaultTemplates));
+  const [followUps, setFollowUps] = useState(() => getInitialData('followups', []));
+  const [expenses, setExpenses] = useState(() => getInitialData('expenses', []));
+  const [coldLeads, setColdLeads] = useState(() => getInitialData('cold_leads', []));
 
-  // 2. Sync to LocalStorage
+  const [dismissedAlertIds, setDismissedAlertIds] = useState([]);
+  const [cloudSyncStatus, setCloudSyncStatus] = useState('connecting'); // 'connected' | 'connecting' | 'offline'
+
+  // 1.5. Real-time Cloud Firestore Subscriptions (Active when authenticated)
+  useEffect(() => {
+    if (!authUser) {
+      setCloudSyncStatus('offline');
+      return;
+    }
+
+    let mounted = true;
+    setCloudSyncStatus('connecting');
+
+    // Helper to sanitize cloud items and delete residual seeded dummy docs from Firestore
+    const sanitizeCloudDocs = (cloudItems, collectionName) => {
+      if (!Array.isArray(cloudItems)) return [];
+      const clean = [];
+      cloudItems.forEach(item => {
+        if (item && DUMMY_SEED_IDS.has(item.id)) {
+          // Permanently purge seeded dummy item from Firestore
+          deleteFirestoreDoc(collectionName, item.id);
+        } else if (item) {
+          clean.push(item);
+        }
+      });
+      return clean;
+    };
+
+    // A. Leads Subscription
+    const unsubLeads = subscribeCollection('leads', (cloudLeads) => {
+      if (!mounted) return;
+      const cleanLeads = sanitizeCloudDocs(cloudLeads, 'leads');
+      setLeads(cleanLeads);
+      setCloudSyncStatus('connected');
+    }, () => { if (mounted) setCloudSyncStatus('offline'); });
+
+    // B. Clients Subscription
+    const unsubClients = subscribeCollection('clients', (cloudClients) => {
+      if (!mounted) return;
+      const cleanClients = sanitizeCloudDocs(cloudClients, 'clients');
+      setClients(cleanClients);
+    });
+
+    // C. Quotations Subscription
+    const unsubQuotes = subscribeCollection('quotations', (cloudQuotes) => {
+      if (!mounted) return;
+      const cleanQuotes = sanitizeCloudDocs(cloudQuotes, 'quotations');
+      setQuotations(cleanQuotes);
+    });
+
+    // D. Payments Subscription
+    const unsubPayments = subscribeCollection('payments', (cloudPayments) => {
+      if (!mounted) return;
+      const cleanPayments = sanitizeCloudDocs(cloudPayments, 'payments');
+      setPayments(cleanPayments);
+    });
+
+    // E. Follow-ups Subscription
+    const unsubFollowups = subscribeCollection('followups', (cloudFollowups) => {
+      if (!mounted) return;
+      const cleanFollowups = sanitizeCloudDocs(cloudFollowups, 'followups');
+      setFollowUps(cleanFollowups);
+    });
+
+    // F. Reminders Subscription
+    const unsubReminders = subscribeCollection('reminders', (cloudReminders) => {
+      if (!mounted) return;
+      const cleanReminders = sanitizeCloudDocs(cloudReminders, 'reminders');
+      setReminders(cleanReminders);
+    });
+
+    // G. WhatsApp Logs Subscription
+    const unsubLogs = subscribeCollection('whatsapp_logs', (cloudLogs) => {
+      if (!mounted) return;
+      const cleanLogs = sanitizeCloudDocs(cloudLogs, 'whatsapp_logs');
+      setWhatsappLogs(cleanLogs);
+    });
+
+    // H. Templates Subscription (Keep default system templates if empty)
+    const unsubTemplates = subscribeCollection('templates', (cloudTemplates) => {
+      if (!mounted) return;
+      if (cloudTemplates && cloudTemplates.length > 0) {
+        setTemplates(cloudTemplates);
+      } else {
+        seedCollectionIfEmpty('templates', defaultTemplates);
+      }
+    });
+
+    // I. Employees Subscription
+    const unsubEmployees = subscribeCollection('employees', (cloudEmps) => {
+      if (!mounted) return;
+      const cleanEmployees = sanitizeCloudDocs(cloudEmps, 'employees');
+      setEmployees(cleanEmployees);
+    });
+
+    // J. Expenses Subscription
+    const unsubExpenses = subscribeCollection('expenses', (cloudExpenses) => {
+      if (!mounted) return;
+      const cleanExpenses = sanitizeCloudDocs(cloudExpenses, 'expenses');
+      setExpenses(cleanExpenses);
+    });
+
+    // K. Cold Leads Subscription
+    const unsubColdLeads = subscribeCollection('cold_leads', (cloudCold) => {
+      if (!mounted) return;
+      const cleanCold = sanitizeCloudDocs(cloudCold, 'cold_leads');
+      setColdLeads(cleanCold);
+    });
+
+    return () => {
+      mounted = false;
+      unsubLeads();
+      unsubClients();
+      unsubQuotes();
+      unsubPayments();
+      unsubFollowups();
+      unsubReminders();
+      unsubLogs();
+      unsubTemplates();
+      unsubEmployees();
+      unsubExpenses();
+      unsubColdLeads();
+    };
+  }, [authUser]);
+
+  // 2. Sync to LocalStorage (Instant offline persistence)
   useEffect(() => {
     localStorage.setItem('setu_crm_current_user', JSON.stringify(currentUser));
   }, [currentUser]);
+
+  useEffect(() => {
+    localStorage.setItem('setu_crm_employees', JSON.stringify(employees));
+  }, [employees]);
 
   useEffect(() => {
     localStorage.setItem('setu_crm_leads', JSON.stringify(leads));
@@ -459,6 +648,18 @@ export const CRMProvider = ({ children }) => {
   useEffect(() => {
     localStorage.setItem('setu_crm_templates', JSON.stringify(templates));
   }, [templates]);
+
+  useEffect(() => {
+    localStorage.setItem('setu_crm_followups', JSON.stringify(followUps));
+  }, [followUps]);
+
+  useEffect(() => {
+    localStorage.setItem('setu_crm_expenses', JSON.stringify(expenses));
+  }, [expenses]);
+
+  useEffect(() => {
+    localStorage.setItem('setu_crm_cold_leads', JSON.stringify(coldLeads));
+  }, [coldLeads]);
 
   // Helper date formatter
   const getTodayDateString = () => {
@@ -491,6 +692,7 @@ export const CRMProvider = ({ children }) => {
       timestamp: getTimeString()
     };
     setWhatsappLogs(prev => [...prev, newMsg]);
+    saveFirestoreDoc('whatsapp_logs', newMsg.id, newMsg);
 
     // Simulate Client Auto-Reply if message is outbound
     if (direction === 'outbound') {
@@ -511,18 +713,62 @@ export const CRMProvider = ({ children }) => {
           timestamp: getTimeString()
         };
         setWhatsappLogs(prev => [...prev, inboundMsg]);
+        saveFirestoreDoc('whatsapp_logs', inboundMsg.id, inboundMsg);
       }, 2000);
     }
   };
 
   // 3. Lead Actions
   const addLead = (leadData) => {
+    if (!leadData.name || !leadData.phone) {
+      return { success: false, error: 'Contact Name and Phone Number are required.' };
+    }
+
+    const normPhone = normalizePhoneNumber(leadData.phone);
+    if (!normPhone || normPhone.length < 8) {
+      return { success: false, error: 'Please enter a valid phone number (at least 8 digits).' };
+    }
+
+    // Phone duplicate detection across Cold Leads, Leads, and Clients
+    const dupCheck = detectPhoneDuplicate(normPhone);
+    if (dupCheck.exists && !leadData.forceAdd) {
+      return {
+        success: false,
+        isDuplicate: true,
+        duplicateInfo: dupCheck,
+        error: dupCheck.message
+      };
+    }
+
+    const today = getTodayDateString();
+    const isoNow = new Date().toISOString();
     const newLead = {
-      id: `L-${Date.now().toString().slice(-3)}`,
-      createdDate: getTodayDateString(),
-      ...leadData
+      id: `L-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 90 + 10)}`,
+      name: leadData.name.trim(),
+      phone: leadData.phone.trim(),
+      normalizedPhone: normPhone,
+      company: (leadData.company || '').trim(),
+      email: (leadData.email || '').trim(),
+      address: (leadData.address || '').trim(),
+      source: (leadData.source || 'Direct Lead').trim(),
+      notes: (leadData.notes || '').trim(),
+      status: leadData.status || 'New',
+      assignedTo: leadData.assignedTo || currentUser?.name || 'Staff',
+      assignedToId: leadData.assignedToId || currentUser?.employeeId || '',
+      isDNC: false,
+      callLogs: [],
+      callCount: 0,
+      createdDate: today,
+      createdAt: isoNow,
+      createdBy: {
+        id: currentUser?.employeeId || currentUser?.uid || 'user',
+        name: currentUser?.name || 'Super Admin',
+        email: currentUser?.email || ''
+      }
     };
+
     setLeads(prev => [newLead, ...prev]);
+    saveFirestoreDoc('leads', newLead.id, newLead);
 
     // Log WhatsApp notification for new lead status (automatic trigger)
     const text = compileTemplate('lead_status_changed', {
@@ -531,12 +777,28 @@ export const CRMProvider = ({ children }) => {
       assignedTo: newLead.assignedTo
     });
     addWhatsAppLog(newLead.phone, text, 'outbound');
+    return { success: true, lead: newLead };
+  };
+
+  const updateLead = (leadId, updatedData) => {
+    setLeads(prev => prev.map(lead => {
+      if (lead.id === leadId) {
+        const merged = { ...lead, ...updatedData };
+        if (updatedData.phone) {
+          merged.normalizedPhone = normalizePhoneNumber(updatedData.phone);
+        }
+        saveFirestoreDoc('leads', leadId, merged);
+        return merged;
+      }
+      return lead;
+    }));
   };
 
   const updateLeadStatus = (leadId, newStatus) => {
     setLeads(prev => prev.map(lead => {
       if (lead.id === leadId) {
         const updatedLead = { ...lead, status: newStatus };
+        saveFirestoreDoc('leads', leadId, updatedLead);
         
         // Trigger status notification
         const text = compileTemplate('lead_status_changed', {
@@ -546,9 +808,9 @@ export const CRMProvider = ({ children }) => {
         });
         addWhatsAppLog(updatedLead.phone, text, 'outbound');
 
-        // Check if Won -> Convert to Client
+        // Check if Won -> Unified Idempotent Conversion to Client & Payment Schedule
         if (newStatus === 'Won') {
-          convertToClient(updatedLead);
+          convertWonLeadToClient(updatedLead);
         }
         return updatedLead;
       }
@@ -557,35 +819,778 @@ export const CRMProvider = ({ children }) => {
   };
 
   const deleteLead = (leadId) => {
-    if (currentUser.role !== 'Admin') return false;
+    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Super Admin') return false;
     setLeads(prev => prev.filter(lead => lead.id !== leadId));
+    deleteFirestoreDoc('leads', leadId);
     return true;
   };
 
-  // 4. Convert Won Lead to Client
-  const convertToClient = (lead) => {
-    // Check if client already exists
-    if (clients.some(c => c.phone === lead.phone || c.email === lead.email)) return;
+  // 3.1 Telecaller Workflow Actions (for Leads in Pipeline)
+  const recordCallAttempt = (leadId, callData) => {
+    const targetLead = leads.find(l => l.id === leadId);
+    if (!targetLead) return { success: false, error: 'Lead not found.' };
 
-    const newClient = {
-      id: `C-${Date.now().toString().slice(-3)}`,
-      name: lead.name,
-      phone: lead.phone,
-      email: lead.email,
-      companyName: lead.name + ' Corp',
-      source: lead.source,
-      notes: lead.notes || 'Converted from Lead',
-      convertedDate: getTodayDateString()
+    const callerId = callData.callerId || currentUser?.employeeId || currentUser?.uid || '';
+    const callerName = callData.callerName || currentUser?.name || 'Telecaller';
+    const timestamp = getTimeString();
+    const today = getTodayDateString();
+
+    // Ownership claim protection:
+    // If lead was unassigned, caller claims it; if already assigned, caller does NOT silently overwrite owner!
+    const finalAssignedTo = targetLead.assignedTo || callerName;
+    const finalAssignedToId = targetLead.assignedToId || callerId;
+
+    const callEntry = {
+      id: `CALL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      timestamp,
+      date: today,
+      outcome: callData.outcome,
+      notes: callData.notes || '',
+      duration: callData.duration || '',
+      callerName,
+      callerId,
+      callerEmail: callData.callerEmail || currentUser?.email || '',
+      nextFollowUpDate: callData.nextFollowUpDate || null,
+      nextFollowUpTime: callData.nextFollowUpTime || null,
+      nextFollowUpReason: callData.nextFollowUpReason || ''
     };
-    setClients(prev => [...prev, newClient]);
 
-    // Update matching lead quotations to type 'client' and link to new client ID
+    const existingLogs = Array.isArray(targetLead.callLogs) ? targetLead.callLogs : [];
+    const updatedCallLogs = [callEntry, ...existingLogs];
+
+    // CANONICAL RULE: Keep call outcomes separate from Lead stages!
+    // The Lead pipeline status remains targetLead.status unless the caller explicitly requested a stage change in callData.newStage.
+    let nextStage = targetLead.status;
+    if (callData.newStage && ['New', 'Contacted', 'Quoted', 'Negotiation', 'Won', 'Lost'].includes(callData.newStage)) {
+      nextStage = callData.newStage;
+    }
+
+    // DNC support on leads
+    const isDNC = callData.outcome === 'Do Not Call' || targetLead.isDNC;
+    const dncReason = callData.outcome === 'Do Not Call' 
+      ? (callData.notes || 'Added to DNC during telecaller call') 
+      : (targetLead.dncReason || '');
+
+    const updatedLeadFields = {
+      ...targetLead,
+      assignedTo: finalAssignedTo,
+      assignedToId: finalAssignedToId,
+      status: nextStage,
+      isDNC,
+      dncReason,
+      callLogs: updatedCallLogs,
+      callCount: (targetLead.callCount || 0) + 1,
+      lastCallOutcome: callData.outcome,
+      lastCallDate: today,
+      lastCallTimestamp: timestamp,
+      lastCallNotes: callData.notes || '',
+      lastCallerName: callerName,
+      updatedAt: timestamp
+    };
+
+    // Update lead in state & Firestore
+    updateLead(leadId, updatedLeadFields);
+
+    // If caller explicitly moved stage to Won, invoke unified conversion
+    if (nextStage === 'Won' && targetLead.status !== 'Won') {
+      convertWonLeadToClient(updatedLeadFields);
+    }
+
+    // Follow-up integration: strictly reuse existing Follow-up module & prevent duplicate records
+    const existingPendingFU = followUps.find(f => f.leadId === leadId && f.status === 'Pending');
+
+    if (callData.nextFollowUpDate && !isDNC && callData.outcome !== 'Not Interested' && callData.outcome !== 'Connected — Not Interested' && callData.outcome !== 'Wrong Number') {
+      if (existingPendingFU) {
+        rescheduleFollowUp(
+          existingPendingFU.id,
+          callData.nextFollowUpDate,
+          callData.nextFollowUpTime || '11:00',
+          callData.nextFollowUpReason || callData.notes || `Telecaller Call: ${callData.outcome}`
+        );
+      } else {
+        addFollowUp({
+          leadId: targetLead.id,
+          leadName: targetLead.name,
+          leadPhone: targetLead.phone,
+          type: 'Call',
+          title: `Follow-up: ${targetLead.name}`,
+          notes: callData.nextFollowUpReason || callData.notes || `Scheduled via Telecaller (${callData.outcome})`,
+          dueDate: callData.nextFollowUpDate,
+          dueTime: callData.nextFollowUpTime || '11:00',
+          priority: (callData.outcome === 'Interested' || callData.outcome === 'Connected — Interested') ? 'High' : 'Medium'
+        });
+      }
+    } else if (existingPendingFU && (isDNC || callData.outcome === 'Converted' || callData.outcome === 'Converted / Closed' || callData.outcome === 'Not Interested' || callData.outcome === 'Connected — Not Interested' || callData.outcome === 'Wrong Number')) {
+      completeFollowUp(existingPendingFU.id, `Closed via Telecaller call outcome: ${callData.outcome}`, false);
+    }
+
+    return { success: true, callEntry, lead: updatedLeadFields };
+  };
+
+  const bulkAssignLeads = (leadIds, assignedToName, assignedToId = '') => {
+    if (!Array.isArray(leadIds) || leadIds.length === 0) return;
+
+    setLeads(prev => prev.map(lead => {
+      if (leadIds.includes(lead.id)) {
+        const updated = {
+          ...lead,
+          assignedTo: assignedToName,
+          assignedToId: assignedToId || lead.assignedToId || ''
+        };
+        saveFirestoreDoc('leads', lead.id, updated);
+        return updated;
+      }
+      return lead;
+    }));
+  };
+
+  // 3.2 Cold Calling Actions & Workflows
+
+  // Phone duplicate detection across Cold Leads, Leads, and Clients
+  const detectPhoneDuplicate = (phone, excludeId = null, excludeType = null) => {
+    const norm = normalizePhoneNumber(phone);
+    if (!norm || norm.length < 8) return { exists: false };
+
+    // 1. Check in Clients
+    if (excludeType !== 'client') {
+      const matchedClient = (clients || []).find(c => normalizePhoneNumber(c.phone) === norm);
+      if (matchedClient) {
+        return {
+          exists: true,
+          type: 'Client',
+          record: matchedClient,
+          message: `Existing Client found: "${matchedClient.name}" (${matchedClient.company || 'Direct'})`
+        };
+      }
+    }
+
+    // 2. Check in Leads
+    if (excludeType !== 'lead') {
+      const matchedLead = (leads || []).find(l => l.id !== excludeId && normalizePhoneNumber(l.phone) === norm);
+      if (matchedLead) {
+        return {
+          exists: true,
+          type: 'Lead',
+          record: matchedLead,
+          message: `Existing Lead found: "${matchedLead.name}" (Status: ${matchedLead.status}, Owner: ${matchedLead.assignedTo || 'Unassigned'})`
+        };
+      }
+    }
+
+    // 3. Check in Cold Leads
+    if (excludeType !== 'cold_lead') {
+      const matchedCold = (coldLeads || []).find(c => c.id !== excludeId && normalizePhoneNumber(c.phone) === norm);
+      if (matchedCold) {
+        return {
+          exists: true,
+          type: 'Cold Lead',
+          record: matchedCold,
+          message: `Existing Cold Lead found: "${matchedCold.name}" (Owner: ${matchedCold.assignedToName || 'Unassigned'}, Status: ${matchedCold.status})`
+        };
+      }
+    }
+
+    return { exists: false };
+  };
+
+  const addColdLead = (data) => {
+    const normPhone = normalizePhoneNumber(data.phone);
+    if (!data.name || !data.phone) {
+      return { success: false, error: 'Name and Phone Number are mandatory.' };
+    }
+    if (!normPhone || normPhone.length < 8) {
+      return { success: false, error: 'Invalid phone number format.' };
+    }
+
+    // Duplicate check
+    const dupCheck = detectPhoneDuplicate(normPhone);
+    if (dupCheck.exists && !data.forceAdd) {
+      return {
+        success: false,
+        isDuplicate: true,
+        duplicateInfo: dupCheck,
+        error: dupCheck.message
+      };
+    }
+
+    const today = getTodayDateString();
+    const isoNow = new Date().toISOString();
+    const newColdLead = {
+      id: `COLD-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 90 + 10)}`,
+      name: data.name.trim(),
+      phone: data.phone.trim(),
+      normalizedPhone: normPhone,
+      company: (data.company || '').trim(),
+      email: (data.email || '').trim(),
+      address: (data.address || '').trim(),
+      city: (data.city || '').trim(),
+      state: (data.state || '').trim(),
+      category: (data.category || data.industry || 'General').trim(),
+      notes: (data.notes || '').trim(),
+      source: (data.source || 'Manual Entry').trim(),
+      status: data.assignedToId ? 'Assigned' : 'Unassigned',
+      isDNC: false,
+      dncReason: '',
+      assignedToId: data.assignedToId || null,
+      assignedToName: data.assignedToName || null,
+      assignedAt: data.assignedToId ? isoNow : null,
+      callLogs: [],
+      callCount: 0,
+      lastCallOutcome: null,
+      lastCallDate: null,
+      lastCallTimestamp: null,
+      lastCallNotes: '',
+      lastCallerName: '',
+      createdDate: today,
+      createdAt: isoNow,
+      createdBy: {
+        id: currentUser?.employeeId || currentUser?.uid || 'user',
+        name: currentUser?.name || 'Super Admin',
+        email: currentUser?.email || ''
+      }
+    };
+
+    setColdLeads(prev => [newColdLead, ...prev]);
+    saveFirestoreDoc('cold_leads', newColdLead.id, newColdLead);
+    return { success: true, coldLead: newColdLead };
+  };
+
+  const bulkImportColdLeads = (records) => {
+    if (!Array.isArray(records) || records.length === 0) {
+      return { success: false, importedCount: 0, errors: [{ row: 0, error: 'No records provided' }] };
+    }
+
+    const today = getTodayDateString();
+    const isoNow = new Date().toISOString();
+    const createdBy = {
+      id: currentUser?.employeeId || currentUser?.uid || 'user',
+      name: currentUser?.name || 'Super Admin',
+      email: currentUser?.email || ''
+    };
+
+    const importedList = [];
+    const errors = [];
+    const duplicates = [];
+
+    records.forEach((raw, idx) => {
+      const rowNum = idx + 1;
+      const name = (raw.name || '').trim();
+      const phone = (raw.phone || '').trim();
+
+      if (!name) {
+        errors.push({ row: rowNum, error: 'Name is mandatory' });
+        return;
+      }
+      if (!phone) {
+        errors.push({ row: rowNum, error: 'Phone is mandatory' });
+        return;
+      }
+
+      const normPhone = normalizePhoneNumber(phone);
+      if (!normPhone || normPhone.length < 8) {
+        errors.push({ row: rowNum, error: `Invalid phone format: "${phone}"` });
+        return;
+      }
+
+      // Check within current batch
+      if (importedList.some(item => item.normalizedPhone === normPhone)) {
+        duplicates.push({ row: rowNum, name, phone, reason: 'Duplicate phone in same file' });
+        return;
+      }
+
+      // Check existing in CRM
+      const dup = detectPhoneDuplicate(normPhone);
+      if (dup.exists && !raw.allowDuplicate) {
+        duplicates.push({ row: rowNum, name, phone, reason: dup.message });
+        return;
+      }
+
+      const newColdLead = {
+        id: `COLD-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 900 + 100)}`,
+        name,
+        phone,
+        normalizedPhone: normPhone,
+        company: (raw.company || '').trim(),
+        email: (raw.email || '').trim(),
+        address: (raw.address || '').trim(),
+        city: (raw.city || '').trim(),
+        state: (raw.state || '').trim(),
+        category: (raw.category || raw.industry || 'General').trim(),
+        notes: (raw.notes || '').trim(),
+        source: (raw.source || 'Bulk Import').trim(),
+        status: raw.assignedToId ? 'Assigned' : 'Unassigned',
+        isDNC: false,
+        dncReason: '',
+        assignedToId: raw.assignedToId || null,
+        assignedToName: raw.assignedToName || null,
+        assignedAt: raw.assignedToId ? isoNow : null,
+        callLogs: [],
+        callCount: 0,
+        lastCallOutcome: null,
+        lastCallDate: null,
+        lastCallTimestamp: null,
+        lastCallNotes: '',
+        lastCallerName: '',
+        createdDate: today,
+        createdAt: isoNow,
+        createdBy
+      };
+
+      importedList.push(newColdLead);
+    });
+
+    if (importedList.length > 0) {
+      setColdLeads(prev => [...importedList, ...prev]);
+      importedList.forEach(item => {
+        saveFirestoreDoc('cold_leads', item.id, item);
+      });
+    }
+
+    return {
+      success: true,
+      importedCount: importedList.length,
+      errors,
+      duplicates,
+      importedList
+    };
+  };
+
+  const recordColdCallAttempt = (coldLeadId, callData) => {
+    const target = (coldLeads || []).find(c => c.id === coldLeadId);
+    if (!target) return { success: false, error: 'Cold record not found.' };
+
+    const callerId = callData.callerId || currentUser?.employeeId || currentUser?.uid || '';
+    const callerName = callData.callerName || currentUser?.name || 'Telecaller';
+    const timestamp = getTimeString();
+    const today = getTodayDateString();
+
+    // Guard Against Simultaneous Claims & Protect Ownership:
+    // If this unassigned record was just claimed by someone else in a parallel session, notify caller
+    if (callData.wasUnassignedWhenOpened && target.assignedToId && target.assignedToId !== callerId) {
+      return {
+        success: false,
+        alreadyClaimed: true,
+        owner: target.assignedToName,
+        error: `Simultaneous claim prevented: This record was just claimed by ${target.assignedToName || 'another employee'}.`
+      };
+    }
+
+    // Auto-assign to employee upon saving call log if unassigned
+    const willBeAssigned = !target.assignedToId;
+    // Later calls must NOT silently replace the owner
+    const newAssignedToId = target.assignedToId || callerId;
+    const newAssignedToName = target.assignedToName || callerName;
+    const assignedAt = target.assignedAt || (willBeAssigned ? timestamp : null);
+
+    const callEntry = {
+      id: `CALL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      coldLeadId,
+      timestamp,
+      date: today,
+      outcome: callData.outcome,
+      notes: callData.notes || '',
+      duration: callData.duration || '',
+      callerId,
+      callerName,
+      callerEmail: callData.callerEmail || currentUser?.email || '',
+      nextFollowUpDate: callData.nextFollowUpDate || null,
+      nextFollowUpTime: callData.nextFollowUpTime || null,
+      nextFollowUpReason: callData.nextFollowUpReason || ''
+    };
+
+    const existingLogs = Array.isArray(target.callLogs) ? target.callLogs : [];
+    const updatedCallLogs = [callEntry, ...existingLogs];
+
+    // Determine status & DNC from the 8 canonical outcomes
+    let nextStatus = target.status;
+    let isDNC = target.isDNC || false;
+    let dncReason = target.dncReason || '';
+
+    if (callData.outcome === 'Do Not Call') {
+      nextStatus = 'Do Not Call';
+      isDNC = true;
+      dncReason = callData.notes || 'Added to DNC during cold call';
+    } else if (callData.outcome === 'Converted' || callData.outcome === 'Converted / Closed') {
+      nextStatus = 'Converted';
+    } else if (callData.outcome === 'Interested' || callData.outcome === 'Connected — Interested') {
+      nextStatus = 'Interested';
+    } else if (callData.outcome === 'Not Interested' || callData.outcome === 'Connected — Not Interested') {
+      nextStatus = 'Not Interested';
+    } else if (callData.outcome === 'Wrong Number') {
+      nextStatus = 'Closed';
+    } else if (callData.outcome === 'Follow-up Required' || callData.outcome === 'Busy' || callData.outcome === 'Busy / Call Later' || callData.nextFollowUpDate) {
+      nextStatus = 'Follow-up Due';
+    } else {
+      nextStatus = 'Called';
+    }
+
+    const updatedColdLead = {
+      ...target,
+      assignedToId: newAssignedToId,
+      assignedToName: newAssignedToName,
+      assignedAt,
+      status: nextStatus,
+      isDNC,
+      dncReason,
+      callLogs: updatedCallLogs,
+      callCount: (target.callCount || 0) + 1,
+      lastCallOutcome: callData.outcome,
+      lastCallDate: today,
+      lastCallTimestamp: timestamp,
+      lastCallNotes: callData.notes || '',
+      lastCallerName: callerName,
+      updatedAt: timestamp
+    };
+
+    setColdLeads(prev => prev.map(c => c.id === coldLeadId ? updatedColdLead : c));
+    saveFirestoreDoc('cold_leads', coldLeadId, updatedColdLead);
+
+    // Follow-up Section Integration (reuses existing CRM Follow-up collection):
+    const norm = target.normalizedPhone || normalizePhoneNumber(target.phone);
+    const existingPendingFU = followUps.find(f => 
+      (f.coldLeadId === coldLeadId || (f.leadPhone && normalizePhoneNumber(f.leadPhone) === norm)) && 
+      f.status === 'Pending'
+    );
+
+    if (callData.nextFollowUpDate && !isDNC && nextStatus !== 'Not Interested' && nextStatus !== 'Closed') {
+      if (existingPendingFU) {
+        rescheduleFollowUp(
+          existingPendingFU.id,
+          callData.nextFollowUpDate,
+          callData.nextFollowUpTime || '11:00',
+          callData.nextFollowUpReason || callData.notes || `Cold Call Follow-up: ${callData.outcome}`
+        );
+      } else {
+        addFollowUp({
+          coldLeadId: target.id,
+          leadName: target.name,
+          leadPhone: target.phone,
+          type: 'Call',
+          title: `Cold Call Follow-up: ${target.name}`,
+          notes: callData.nextFollowUpReason || callData.notes || `Scheduled via Cold Calling (${callData.outcome})`,
+          dueDate: callData.nextFollowUpDate,
+          dueTime: callData.nextFollowUpTime || '11:00',
+          priority: (callData.outcome === 'Interested' || callData.outcome === 'Connected — Interested') ? 'High' : 'Medium'
+        });
+      }
+    } else if (existingPendingFU && (isDNC || nextStatus === 'Not Interested' || nextStatus === 'Converted' || nextStatus === 'Closed')) {
+      completeFollowUp(existingPendingFU.id, `Completed via Cold Call outcome: ${callData.outcome}`, false);
+    }
+
+    return { success: true, callEntry, coldLead: updatedColdLead };
+  };
+
+  const convertColdLeadToLead = (coldLeadId, leadOverrides = {}) => {
+    const target = (coldLeads || []).find(c => c.id === coldLeadId);
+    if (!target) return { success: false, error: 'Cold record not found.' };
+
+    // Retry-safe & idempotent check:
+    // Check if target is already converted OR if a lead with matching coldLeadId already exists
+    const existingPromotedLead = leads.find(l => l.coldLeadId === target.id);
+    if ((target.status === 'Converted' && target.convertedLeadId) || existingPromotedLead) {
+      const existingId = target.convertedLeadId || existingPromotedLead?.id;
+      return { 
+        success: false, 
+        alreadyConverted: true, 
+        leadId: existingId,
+        lead: existingPromotedLead || leads.find(l => l.id === existingId),
+        error: 'This cold calling record has already been converted to a Lead.' 
+      };
+    }
+
+    const norm = target.normalizedPhone || normalizePhoneNumber(target.phone);
+    const existingLead = leads.find(l => normalizePhoneNumber(l.phone) === norm);
+
+    if (existingLead && !leadOverrides.forceLinkToExisting) {
+      return {
+        success: false,
+        isDuplicate: true,
+        existingLead,
+        error: `A matching lead already exists for phone "${target.phone}": ${existingLead.name} (${existingLead.status}).`
+      };
+    }
+
+    if (existingLead && leadOverrides.forceLinkToExisting) {
+      // Merge cold calling activity and call logs into existing lead
+      const combinedLogs = [...(target.callLogs || []), ...(existingLead.callLogs || [])];
+      const mergedNotes = existingLead.notes 
+        ? `${existingLead.notes}\n[Cold Call History]: ${target.notes || ''}`
+        : (target.notes || '');
+
+      const updatedLeadData = {
+        ...existingLead,
+        coldLeadId: target.id,
+        callLogs: combinedLogs,
+        notes: mergedNotes
+      };
+      updateLead(existingLead.id, updatedLeadData);
+
+      const updatedCold = {
+        ...target,
+        status: 'Converted',
+        convertedLeadId: existingLead.id,
+        convertedAt: new Date().toISOString()
+      };
+      setColdLeads(prev => prev.map(c => c.id === coldLeadId ? updatedCold : c));
+      saveFirestoreDoc('cold_leads', coldLeadId, updatedCold);
+
+      return { success: true, lead: existingLead, merged: true };
+    }
+
+    // Create regular lead via standard lead schema
+    const newLead = {
+      id: `L-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 90 + 10)}`,
+      name: (leadOverrides.name || target.name).trim(),
+      phone: target.phone.trim(),
+      normalizedPhone: norm,
+      email: (leadOverrides.email || target.email || '').trim(),
+      address: (leadOverrides.address || target.address || '').trim(),
+      company: (leadOverrides.company || target.company || '').trim(),
+      source: (leadOverrides.source || target.source || 'Cold Calling').trim(),
+      notes: (leadOverrides.notes || target.notes || `Promoted from Cold Calling (${target.id})`).trim(),
+      assignedTo: leadOverrides.assignedTo || target.assignedToName || currentUser?.name || 'Staff',
+      assignedToId: leadOverrides.assignedToId || target.assignedToId || currentUser?.employeeId || '',
+      status: leadOverrides.status || 'Contacted',
+      coldLeadId: target.id,
+      callLogs: target.callLogs || [],
+      callCount: target.callCount || 0,
+      lastCallOutcome: target.lastCallOutcome || null,
+      lastCallDate: target.lastCallDate || null,
+      createdDate: getTodayDateString(),
+      createdAt: new Date().toISOString()
+    };
+
+    setLeads(prev => [newLead, ...prev]);
+    saveFirestoreDoc('leads', newLead.id, newLead);
+
+    // Mark cold record as converted
+    const updatedCold = {
+      ...target,
+      status: 'Converted',
+      convertedLeadId: newLead.id,
+      convertedAt: new Date().toISOString()
+    };
+    setColdLeads(prev => prev.map(c => c.id === coldLeadId ? updatedCold : c));
+    saveFirestoreDoc('cold_leads', coldLeadId, updatedCold);
+
+    // Re-link any pending follow-up from cold lead to new lead
+    setFollowUps(prev => prev.map(fu => {
+      if (fu.coldLeadId === coldLeadId && fu.status === 'Pending') {
+        const updatedFU = { ...fu, leadId: newLead.id, leadName: newLead.name };
+        saveFirestoreDoc('followups', fu.id, updatedFU);
+        return updatedFU;
+      }
+      return fu;
+    }));
+
+    return { success: true, lead: newLead };
+  };
+
+  const updateColdLead = (coldLeadId, updates) => {
+    setColdLeads(prev => prev.map(c => {
+      if (c.id === coldLeadId) {
+        const merged = { ...c, ...updates, updatedAt: new Date().toISOString() };
+        if (updates.phone) {
+          merged.normalizedPhone = normalizePhoneNumber(updates.phone);
+        }
+        saveFirestoreDoc('cold_leads', coldLeadId, merged);
+        return merged;
+      }
+      return c;
+    }));
+    return { success: true };
+  };
+
+  const deleteColdLead = (coldLeadId) => {
+    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Super Admin') return false;
+    setColdLeads(prev => prev.filter(c => c.id !== coldLeadId));
+    deleteFirestoreDoc('cold_leads', coldLeadId);
+    return true;
+  };
+
+  const bulkAssignColdLeads = (coldLeadIds, employeeId, employeeName) => {
+    if (!Array.isArray(coldLeadIds) || coldLeadIds.length === 0) return { success: false };
+    const isoNow = new Date().toISOString();
+
+    setColdLeads(prev => prev.map(c => {
+      if (coldLeadIds.includes(c.id)) {
+        const isAssigned = !!employeeId;
+        const nextStatus = isAssigned 
+          ? (c.status === 'Unassigned' ? 'Assigned' : c.status)
+          : 'Unassigned';
+
+        const updated = {
+          ...c,
+          assignedToId: employeeId || null,
+          assignedToName: employeeName || null,
+          assignedAt: isAssigned ? isoNow : null,
+          status: nextStatus,
+          updatedAt: isoNow
+        };
+        saveFirestoreDoc('cold_leads', c.id, updated);
+        return updated;
+      }
+      return c;
+    }));
+    return { success: true };
+  };
+
+  const toggleColdLeadDNC = (coldLeadId, reason = '', isDNC = true) => {
+    setColdLeads(prev => prev.map(c => {
+      if (c.id === coldLeadId) {
+        const updated = {
+          ...c,
+          isDNC,
+          dncReason: isDNC ? (reason || 'Marked as Do Not Call') : '',
+          status: isDNC ? 'Do Not Call' : (c.assignedToId ? 'Assigned' : 'Unassigned'),
+          updatedAt: new Date().toISOString()
+        };
+        saveFirestoreDoc('cold_leads', coldLeadId, updated);
+        return updated;
+      }
+      return c;
+    }));
+    return { success: true };
+  };
+
+  // 4. Unified Idempotent Won Conversion (Both Lead Won and Quote Accepted converge here)
+  const convertWonLeadToClient = (leadIdOrLead, quoteId = null, acceptedTerms = null) => {
+    let lead = null;
+    if (typeof leadIdOrLead === 'object' && leadIdOrLead !== null) {
+      lead = leadIdOrLead;
+    } else if (leadIdOrLead) {
+      lead = leads.find(l => l.id === leadIdOrLead);
+    }
+
+    // If quotation was passed directly with a client ID (already a client)
+    if (!lead && quoteId) {
+      const q = quotations.find(item => item.id === quoteId);
+      if (q && q.type === 'client') {
+        const client = clients.find(c => c.id === q.clientOrLeadId);
+        if (client) {
+          createPaymentRecordForQuotation(q, client, acceptedTerms);
+          return { success: true, client, quotation: q };
+        }
+      }
+    }
+
+    if (!lead) return { success: false, error: 'Originating Lead record not found.' };
+
+    const normPhone = normalizePhoneNumber(lead.phone);
+    const isoNow = new Date().toISOString();
+    const today = getTodayDateString();
+
+    // Idempotent client check: match by originatingLeadId, normalized phone, or exact email
+    let client = clients.find(c => 
+      c.originatingLeadId === lead.id || 
+      (normPhone && normPhone.length >= 8 && normalizePhoneNumber(c.phone) === normPhone) ||
+      (lead.email && c.email && c.email.toLowerCase().trim() === lead.email.toLowerCase().trim())
+    );
+
+    let createdNewClient = false;
+    if (!client) {
+      createdNewClient = true;
+      const clientCompany = lead.company || lead.companyName || `${lead.name}`;
+      client = {
+        id: `C-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 90 + 10)}`,
+        name: lead.name.trim(),
+        phone: lead.phone.trim(),
+        normalizedPhone: normPhone,
+        email: (lead.email || '').trim(),
+        companyName: clientCompany.trim(),
+        address: (lead.address || '').trim(),
+        source: lead.source || 'Converted Lead',
+        notes: lead.notes || `Official Client created from Won Lead (${lead.id})`,
+        originatingLeadId: lead.id,
+        originatingQuoteId: quoteId || lead.quotation?.id || null,
+        convertedDate: today,
+        convertedAt: isoNow,
+        convertedBy: {
+          id: currentUser?.employeeId || currentUser?.uid || 'user',
+          name: currentUser?.name || 'Super Admin'
+        }
+      };
+
+      setClients(prev => {
+        if (prev.some(c => c.id === client.id || (normPhone && normalizePhoneNumber(c.phone) === normPhone))) {
+          return prev;
+        }
+        return [...prev, client];
+      });
+      saveFirestoreDoc('clients', client.id, client);
+    }
+
+    // Update Lead to Won with reference to official Client (Idempotent)
+    const updatedLead = {
+      ...lead,
+      status: 'Won',
+      convertedClientId: client.id,
+      wonAt: lead.wonAt || isoNow,
+      wonQuoteId: quoteId || lead.wonQuoteId || null,
+      updatedAt: isoNow
+    };
+    setLeads(prev => prev.map(l => l.id === lead.id ? updatedLead : l));
+    saveFirestoreDoc('leads', lead.id, updatedLead);
+
+    // Update matching lead quotations to type 'client' and link to client ID
+    let targetQuote = null;
     setQuotations(prev => prev.map(q => {
-      if (q.clientOrLeadId === lead.id) {
-        return { ...q, clientOrLeadId: newClient.id, type: 'client' };
+      const isMatchingLeadQuote = q.clientOrLeadId === lead.id || (lead.quotation && lead.quotation.id === q.id);
+      const isTargetQuote = quoteId ? q.id === quoteId : isMatchingLeadQuote;
+
+      if (isMatchingLeadQuote || isTargetQuote) {
+        const nextStatus = (quoteId && q.id === quoteId) || q.status === 'Accepted' ? 'Accepted' : (q.status || 'Sent');
+        const updatedQ = {
+          ...q,
+          clientOrLeadId: client.id,
+          type: 'client',
+          originatingLeadId: lead.id,
+          status: nextStatus,
+          acceptedAt: nextStatus === 'Accepted' ? (q.acceptedAt || isoNow) : null
+        };
+        if (isTargetQuote) {
+          targetQuote = updatedQ;
+        }
+        saveFirestoreDoc('quotations', updatedQ.id, updatedQ);
+        return updatedQ;
       }
       return q;
     }));
+
+    if (!targetQuote) {
+      targetQuote = quotations.find(q => 
+        (q.clientOrLeadId === client.id || q.clientOrLeadId === lead.id) && 
+        (q.status === 'Accepted' || quoteId === q.id)
+      ) || quotations.find(q => q.clientOrLeadId === client.id || q.clientOrLeadId === lead.id);
+    }
+
+    // Generate Payment record & instalment schedule idempotently
+    if (targetQuote) {
+      createPaymentRecordForQuotation(targetQuote, client, acceptedTerms);
+    }
+
+    return { success: true, client, lead: updatedLead, quotation: targetQuote, createdNewClient };
+  };
+
+  // Backwards compatibility alias
+  const convertToClient = (lead) => convertWonLeadToClient(lead);
+
+  const updateClient = (clientId, updatedData) => {
+    setClients(prev => prev.map(client => {
+      if (client.id === clientId) {
+        const merged = { ...client, ...updatedData };
+        saveFirestoreDoc('clients', clientId, merged);
+        return merged;
+      }
+      return client;
+    }));
+  };
+
+  const deleteClient = (clientId) => {
+    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Super Admin') return false;
+    setClients(prev => prev.filter(c => c.id !== clientId));
+    deleteFirestoreDoc('clients', clientId);
+    return true;
   };
 
   // 5. Quotation & Invoice Actions
@@ -616,6 +1621,7 @@ export const CRMProvider = ({ children }) => {
     };
 
     setQuotations(prev => [newQuote, ...prev]);
+    saveFirestoreDoc('quotations', newQuote.id, newQuote);
 
     // Save quotation directly inside Lead in JSON format if linked to lead
     if (newQuote.type === 'lead' || newQuote.clientOrLeadId?.startsWith('L-')) {
@@ -635,6 +1641,7 @@ export const CRMProvider = ({ children }) => {
         const docDate = updatedData.date || q.date || getTodayDateString();
         const normalizedId = normalizeDocumentId(updatedData.id || q.id, docDate);
         const merged = { ...q, ...updatedData, id: normalizedId, date: docDate };
+        saveFirestoreDoc('quotations', merged.id, merged);
         if (merged.type === 'lead' || merged.clientOrLeadId?.startsWith('L-')) {
           saveLeadQuotationJSON(merged.clientOrLeadId, merged);
         }
@@ -645,9 +1652,16 @@ export const CRMProvider = ({ children }) => {
   };
 
   const updateQuotationStatus = (quoteId, status) => {
+    let targetQuote = null;
     setQuotations(prev => prev.map(q => {
       if (q.id === quoteId) {
-        const updated = { ...q, status };
+        const updated = { 
+          ...q, 
+          status,
+          acceptedAt: status === 'Accepted' ? (q.acceptedAt || new Date().toISOString()) : q.acceptedAt
+        };
+        targetQuote = updated;
+        saveFirestoreDoc('quotations', updated.id, updated);
         if (status === 'Sent') {
           sendQuotationWhatsApp(updated);
         }
@@ -655,19 +1669,28 @@ export const CRMProvider = ({ children }) => {
         if (updated.type === 'lead' || updated.clientOrLeadId?.startsWith('L-')) {
           saveLeadQuotationJSON(updated.clientOrLeadId, updated);
         }
-        // If accepted and is client, generate Payment record and schedule reminders
-        if (status === 'Accepted' && updated.type === 'client') {
-          createPaymentRecordForQuotation(updated);
-        }
         return updated;
       }
       return q;
     }));
+
+    // If accepted, invoke single idempotent Won conversion (Unifies Lead Won and Quote Acceptance)
+    if (status === 'Accepted' && targetQuote) {
+      if (targetQuote.type === 'lead' || targetQuote.clientOrLeadId?.startsWith('L-') || targetQuote.originatingLeadId) {
+        convertWonLeadToClient(targetQuote.clientOrLeadId || targetQuote.originatingLeadId, quoteId);
+      } else if (targetQuote.type === 'client') {
+        const client = clients.find(c => c.id === targetQuote.clientOrLeadId);
+        if (client) {
+          createPaymentRecordForQuotation(targetQuote, client);
+        }
+      }
+    }
   };
 
   const deleteQuotation = (quoteId) => {
-    if (currentUser.role !== 'Admin') return false;
+    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Super Admin') return false;
     setQuotations(prev => prev.filter(q => q.id !== quoteId));
+    deleteFirestoreDoc('quotations', quoteId);
     return true;
   };
 
@@ -692,44 +1715,69 @@ export const CRMProvider = ({ children }) => {
       pdfUrl: `https://setusolution.in/doc/${quote.id}`
     });
 
+    // Truthful activity logging: dispatch link/template prepared
     addWhatsAppLog(target.phone, text, 'outbound');
   };
 
   // 6. Payment Actions & Automatic Creator on Quote Acceptance
-  const createPaymentRecordForQuotation = (quote) => {
-    // Check if payment already exists
-    if (payments.some(p => p.quotationId === quote.id)) return;
+  const createPaymentRecordForQuotation = (quote, clientRecord = null, customTerms = null) => {
+    // Check if payment already exists for this quotation (Idempotent)
+    const existing = payments.find(p => p.quotationId === quote.id);
+    if (existing) return existing;
 
-    const client = clients.find(c => c.id === quote.clientOrLeadId);
-    if (!client) return;
+    const client = clientRecord || clients.find(c => c.id === quote.clientOrLeadId);
+    if (!client) return null;
 
-    // Create a 2-instalment schedule by default
-    const half = Math.round(quote.total / 2);
-    const due1 = getTodayDateString();
-    const due2 = new Date();
-    due2.setDate(due2.getDate() + 30); // 30 days later
-    const due2Str = due2.toISOString().split('T')[0];
+    let instalments = [];
+    if (customTerms && Array.isArray(customTerms.instalments) && customTerms.instalments.length > 0) {
+      instalments = customTerms.instalments.map((inst, idx) => ({
+        id: `INST-${Date.now()}-${idx + 1}-${Math.floor(Math.random() * 1000)}`,
+        amount: Number(inst.amount) || 0,
+        dueDate: inst.dueDate || getTodayDateString(),
+        paidDate: null,
+        status: 'Pending'
+      }));
+    } else if (quote.paymentTerms && Array.isArray(quote.paymentTerms.instalments) && quote.paymentTerms.instalments.length > 0) {
+      instalments = quote.paymentTerms.instalments;
+    } else {
+      // Configurable standard default: 2-instalment schedule (50/50 split)
+      const half = Math.round(quote.total / 2);
+      const due1 = quote.date || getTodayDateString();
+      const due2 = new Date();
+      due2.setDate(due2.getDate() + 30); // 30 days later
+      const due2Str = due2.toISOString().split('T')[0];
+
+      instalments = [
+        { id: `INST-${Date.now()}-1-${Math.floor(Math.random() * 1000)}`, amount: half, dueDate: due1, paidDate: null, status: 'Pending' },
+        { id: `INST-${Date.now()}-2-${Math.floor(Math.random() * 1000)}`, amount: quote.total - half, dueDate: due2Str, paidDate: null, status: 'Pending' }
+      ];
+    }
 
     const newPayment = {
-      id: `P-${Date.now().toString().slice(-3)}`,
+      id: `P-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 90 + 10)}`,
       clientId: client.id,
+      clientName: client.name,
       quotationId: quote.id,
+      quoteTitle: quote.title,
       totalAmount: quote.total,
       status: 'Pending',
-      instalments: [
-        { id: `INST-${Date.now()}-1`, amount: half, dueDate: due1, paidDate: null, status: 'Pending' },
-        { id: `INST-${Date.now()}-2`, amount: quote.total - half, dueDate: due2Str, paidDate: null, status: 'Pending' }
-      ]
+      createdAt: new Date().toISOString(),
+      instalments
     };
 
-    setPayments(prev => [...prev, newPayment]);
+    setPayments(prev => {
+      if (prev.some(p => p.quotationId === quote.id)) return prev;
+      return [...prev, newPayment];
+    });
+    saveFirestoreDoc('payments', newPayment.id, newPayment);
     scheduleRemindersForInstalments(client, newPayment.instalments);
+    return newPayment;
   };
 
   // Schedule auto-reminders based on instalment due dates
   const scheduleRemindersForInstalments = (client, instalments) => {
     const newRems = [];
-    instalments.forEach(inst => {
+    instalments.forEach((inst, idx) => {
       const due = new Date(inst.dueDate);
       
       // 1 day before
@@ -745,21 +1793,24 @@ export const CRMProvider = ({ children }) => {
       threeDaysAfter.setDate(due.getDate() + 3);
       const threeDaysAfterStr = threeDaysAfter.toISOString().split('T')[0];
 
+      const salt = `${idx}-${Math.floor(Math.random() * 9000 + 1000)}`;
       newRems.push(
-        { id: `REM-${Date.now()}-A`, clientId: client.id, clientName: client.name, phone: client.phone, amount: inst.amount, dueDate: inst.dueDate, scheduledFor: oneDayBeforeStr, triggerType: '1_day_before', status: 'Pending', sentDate: null },
-        { id: `REM-${Date.now()}-B`, clientId: client.id, clientName: client.name, phone: client.phone, amount: inst.amount, dueDate: inst.dueDate, scheduledFor: dueDayStr, triggerType: 'due_day', status: 'Pending', sentDate: null },
-        { id: `REM-${Date.now()}-C`, clientId: client.id, clientName: client.name, phone: client.phone, amount: inst.amount, dueDate: inst.dueDate, scheduledFor: threeDaysAfterStr, triggerType: '3_days_after', status: 'Pending', sentDate: null }
+        { id: `REM-${Date.now()}-A-${salt}`, clientId: client.id, clientName: client.name, phone: client.phone, amount: inst.amount, dueDate: inst.dueDate, scheduledFor: oneDayBeforeStr, triggerType: '1_day_before', status: 'Pending', sentDate: null },
+        { id: `REM-${Date.now()}-B-${salt}`, clientId: client.id, clientName: client.name, phone: client.phone, amount: inst.amount, dueDate: inst.dueDate, scheduledFor: dueDayStr, triggerType: 'due_day', status: 'Pending', sentDate: null },
+        { id: `REM-${Date.now()}-C-${salt}`, clientId: client.id, clientName: client.name, phone: client.phone, amount: inst.amount, dueDate: inst.dueDate, scheduledFor: threeDaysAfterStr, triggerType: '3_days_after', status: 'Pending', sentDate: null }
       );
     });
     setReminders(prev => [...prev, ...newRems]);
+    newRems.forEach(r => saveFirestoreDoc('reminders', r.id, r));
   };
 
   const recordPaymentPayment = (paymentId, instalmentId, paidDate = getTodayDateString()) => {
     let clientPhone = '';
     let clientName = '';
     let quoteTitle = '';
-    let totalAmt = 0;
     let paidAmt = 0;
+    let balance = 0;
+    let alreadyPaid = false;
 
     setPayments(prev => prev.map(p => {
       if (p.id === paymentId) {
@@ -774,10 +1825,22 @@ export const CRMProvider = ({ children }) => {
         const quote = quotations.find(q => q.id === p.quotationId);
         if (quote) quoteTitle = quote.title;
 
+        const matchedInst = p.instalments.find(i => i.id === instalmentId);
+        if (matchedInst && matchedInst.status === 'Paid') {
+          alreadyPaid = true;
+          return p; // Idempotent: don't double collect
+        }
+
         const updatedInstalments = p.instalments.map(inst => {
           if (inst.id === instalmentId) {
             paidAmt = inst.amount;
-            return { ...inst, status: 'Paid', paidDate };
+            return { 
+              ...inst, 
+              status: 'Paid', 
+              paidDate,
+              collectedBy: currentUser?.name || 'Super Admin',
+              collectedById: currentUser?.employeeId || currentUser?.uid || ''
+            };
           }
           return inst;
         });
@@ -794,40 +1857,59 @@ export const CRMProvider = ({ children }) => {
 
         // Calculate current balance
         const totalPaid = updatedInstalments.filter(i => i.status === 'Paid').reduce((sum, item) => sum + item.amount, 0);
-        const balance = p.totalAmount - totalPaid;
-
-        // Trigger WhatsApp Notification
-        const formattedAmt = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(paidAmt);
-        const formattedBal = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(balance);
-        
-        const text = compileTemplate('payment_received', {
-          clientName,
-          amount: formattedAmt,
-          quoteTitle,
-          balance: formattedBal
-        });
-        addWhatsAppLog(clientPhone, text, 'outbound');
+        balance = Math.max(0, p.totalAmount - totalPaid);
 
         // Cancel scheduled reminders for this specific instalment (mark as complete / Sent)
-        const matchedInstalment = p.instalments.find(i => i.id === instalmentId);
-        if (matchedInstalment) {
+        if (matchedInst) {
           setReminders(rPrev => rPrev.map(rem => {
-            if (rem.clientId === p.clientId && rem.amount === matchedInstalment.amount && rem.dueDate === matchedInstalment.dueDate && rem.status === 'Pending') {
-              return { ...rem, status: 'Sent', sentDate: paidDate }; // auto mark complete
+            if (rem.clientId === p.clientId && rem.amount === matchedInst.amount && rem.dueDate === matchedInst.dueDate && rem.status === 'Pending') {
+              const updatedRem = { ...rem, status: 'Sent', sentDate: paidDate };
+              saveFirestoreDoc('reminders', rem.id, updatedRem);
+              return updatedRem;
             }
             return rem;
           }));
         }
 
-        return { ...p, status: pStatus, instalments: updatedInstalments };
+        const updatedPayment = { 
+          ...p, 
+          status: pStatus, 
+          balanceRemaining: balance,
+          instalments: updatedInstalments,
+          lastPaymentDate: paidDate,
+          updatedAt: new Date().toISOString()
+        };
+        saveFirestoreDoc('payments', p.id, updatedPayment);
+        return updatedPayment;
       }
       return p;
     }));
+
+    if (alreadyPaid) {
+      return { success: true, message: 'Instalment was already recorded as paid.' };
+    }
+
+    // Trigger WhatsApp Notification receipt
+    if (clientPhone) {
+      const formattedAmt = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(paidAmt);
+      const formattedBal = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(balance);
+      
+      const text = compileTemplate('payment_received', {
+        clientName,
+        amount: formattedAmt,
+        quoteTitle: quoteTitle || 'Services',
+        balance: formattedBal
+      });
+      addWhatsAppLog(clientPhone, text, 'outbound');
+    }
+
+    return { success: true, collectedAmount: paidAmt, balanceRemaining: balance };
   };
 
   const deletePayment = (paymentId) => {
-    if (currentUser.role !== 'Admin') return false;
+    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Super Admin') return false;
     setPayments(prev => prev.filter(p => p.id !== paymentId));
+    deleteFirestoreDoc('payments', paymentId);
     return true;
   };
 
@@ -848,6 +1930,7 @@ export const CRMProvider = ({ children }) => {
       }))
     };
     setPayments(prev => [...prev, newPayment]);
+    saveFirestoreDoc('payments', newPayment.id, newPayment);
 
     const client = clients.find(c => c.id === clientId);
     if (client) {
@@ -868,7 +1951,9 @@ export const CRMProvider = ({ children }) => {
         });
         addWhatsAppLog(rem.phone, text, 'outbound');
 
-        return { ...rem, status: 'Sent', sentDate: getTodayDateString() };
+        const updatedRem = { ...rem, status: 'Sent', sentDate: getTodayDateString() };
+        saveFirestoreDoc('reminders', rem.id, updatedRem);
+        return updatedRem;
       }
       return rem;
     }));
@@ -899,11 +1984,13 @@ export const CRMProvider = ({ children }) => {
       sentDate: getTodayDateString()
     };
     setReminders(prev => [newLog, ...prev]);
+    saveFirestoreDoc('reminders', newLog.id, newLog);
   };
 
   const deleteReminder = (remId) => {
-    if (currentUser.role !== 'Admin') return false;
+    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Super Admin') return false;
     setReminders(prev => prev.filter(r => r.id !== remId));
+    deleteFirestoreDoc('reminders', remId);
     return true;
   };
 
@@ -911,16 +1998,351 @@ export const CRMProvider = ({ children }) => {
   const updateTemplate = (id, newText) => {
     setTemplates(prev => prev.map(t => {
       if (t.id === id) {
-        return { ...t, template: newText };
+        const updated = { ...t, template: newText };
+        saveFirestoreDoc('templates', id, updated);
+        return updated;
       }
       return t;
     }));
   };
 
+  // 9. Follow-up & Scheduled Tasks Actions
+  const addFollowUp = (data) => {
+    const newFU = {
+      id: `FU-${Date.now().toString().slice(-4)}`,
+      status: 'Pending',
+      createdAt: getTodayDateString(),
+      completedAt: null,
+      ...data
+    };
+    setFollowUps(prev => [newFU, ...prev]);
+    saveFirestoreDoc('followups', newFU.id, newFU);
+
+    // Send WhatsApp notification log simulation
+    if (newFU.leadPhone) {
+      addWhatsAppLog(newFU.leadPhone, `Reminder scheduled: "${newFU.title}" on ${newFU.dueDate} at ${newFU.dueTime || '10:00 AM'}.`, 'outbound');
+    }
+    return newFU;
+  };
+
+  const completeFollowUp = (followUpId, customNotes = '', shouldResetStatusToNew = true) => {
+    let affectedLeadId = null;
+    let affectedLeadName = '';
+
+    setFollowUps(prev => prev.map(fu => {
+      if (fu.id === followUpId) {
+        affectedLeadId = fu.leadId;
+        affectedLeadName = fu.leadName;
+        const updated = {
+          ...fu,
+          status: 'Completed',
+          completedAt: getTimeString(),
+          completionNotes: customNotes
+        };
+        saveFirestoreDoc('followups', fu.id, updated);
+        return updated;
+      }
+      return fu;
+    }));
+
+    // User requirement: "Done hone pe unhe new lead me daldo" (only if requested and lead is not Won or Lost)
+    if (affectedLeadId && shouldResetStatusToNew) {
+      const targetLead = leads.find(l => l.id === affectedLeadId);
+      if (targetLead && targetLead.status !== 'Won' && targetLead.status !== 'Lost') {
+        updateLeadStatus(affectedLeadId, 'New');
+      }
+    }
+  };
+
+  const rescheduleFollowUp = (followUpId, newDate, newTime, reason = '') => {
+    setFollowUps(prev => prev.map(fu => {
+      if (fu.id === followUpId) {
+        const updated = {
+          ...fu,
+          dueDate: newDate,
+          dueTime: newTime || fu.dueTime,
+          status: 'Pending',
+          rescheduledReason: reason,
+          rescheduledAt: getTimeString()
+        };
+        saveFirestoreDoc('followups', fu.id, updated);
+        return updated;
+      }
+      return fu;
+    }));
+
+    // Reset dismissed state so alert can re-fire on the newly scheduled date
+    setDismissedAlertIds(prev => prev.filter(id => id !== followUpId));
+  };
+
+  const deleteFollowUp = (followUpId) => {
+    setFollowUps(prev => prev.filter(fu => fu.id !== followUpId));
+    deleteFirestoreDoc('followups', followUpId);
+  };
+
+  const dismissFollowUpAlert = (followUpId) => {
+    setDismissedAlertIds(prev => [...new Set([...prev, followUpId])]);
+  };
+
+  // 10. Employee Management Actions (Super Admin)
+  const addEmployee = async (employeeData) => {
+    if (!employeeData.name || !employeeData.email || !employeeData.position) {
+      return { success: false, error: 'Name, Email, and Position are mandatory fields.' };
+    }
+
+    const cleanEmail = employeeData.email.trim().toLowerCase();
+    
+    // Validate email format
+    if (!cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+      return { success: false, error: 'Please enter a valid email address.' };
+    }
+
+    if (cleanEmail === SUPER_ADMIN_EMAIL) {
+      return { success: false, error: 'admin@setusolution.com is reserved exclusively for the Master Super Admin.' };
+    }
+
+    // Check duplicate email
+    if (employees.some(e => e.email.toLowerCase() === cleanEmail)) {
+      return { success: false, error: `An employee with email "${cleanEmail}" is already registered.` };
+    }
+
+    // Generate or validate unique Employee ID
+    let empId = employeeData.id ? employeeData.id.trim().toUpperCase() : '';
+    if (!empId) {
+      const highestNum = employees.reduce((max, e) => {
+        const num = parseInt(String(e.id).replace(/[^0-9]/g, ''), 10);
+        return !isNaN(num) && num > max ? num : max;
+      }, 100);
+      empId = `EMP-${highestNum + 1}`;
+    }
+
+    if (employees.some(e => e.id === empId)) {
+      return { success: false, error: `Employee ID "${empId}" is already assigned to another employee.` };
+    }
+
+    const newEmp = {
+      id: empId,
+      name: employeeData.name.trim(),
+      email: cleanEmail,
+      phone: employeeData.phone?.trim() || '',
+      position: employeeData.position.trim(),
+      department: employeeData.department || 'Sales',
+      role: employeeData.role || 'Staff',
+      permissions: employeeData.permissions || ['dashboard', 'leads', 'clients', 'quotations', 'payments', 'expenses'],
+      status: 'Pending Password Setup', // Initial account state
+      setupToken: `SETU-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`,
+      createdAt: getTodayDateString(),
+      activatedAt: null,
+      createdBy: currentUser?.name || 'Super Admin'
+    };
+
+    const updatedEmployees = [newEmp, ...employees];
+    setEmployees(updatedEmployees);
+    try {
+      localStorage.setItem('setu_crm_employees', JSON.stringify(updatedEmployees));
+    } catch (e) {}
+    await saveFirestoreDoc('employees', newEmp.id, newEmp);
+
+    return { success: true, employee: newEmp };
+  };
+
+  const updateEmployee = async (empId, updatedData) => {
+    if (updatedData.email) {
+      const cleanEmail = updatedData.email.trim().toLowerCase();
+      if (employees.some(e => e.id !== empId && e.email.toLowerCase() === cleanEmail)) {
+        return { success: false, error: `Email "${cleanEmail}" is already used by another employee.` };
+      }
+      updatedData.email = cleanEmail;
+    }
+
+    setEmployees(prev => prev.map(e => {
+      if (e.id === empId) {
+        const merged = { ...e, ...updatedData };
+        saveFirestoreDoc('employees', empId, merged);
+        return merged;
+      }
+      return e;
+    }));
+    return { success: true };
+  };
+
+  const toggleEmployeeStatus = async (empId) => {
+    let newStatus = 'Active';
+    setEmployees(prev => prev.map(e => {
+      if (e.id === empId) {
+        newStatus = e.status === 'Active' ? 'Inactive' : 'Active';
+        const updated = { ...e, status: newStatus };
+        saveFirestoreDoc('employees', empId, updated);
+        return updated;
+      }
+      return e;
+    }));
+    return { success: true, newStatus };
+  };
+
+  const deleteEmployee = async (empId) => {
+    if (currentUser?.role !== 'Super Admin') return false;
+    setEmployees(prev => prev.filter(e => e.id !== empId));
+    await deleteFirestoreDoc('employees', empId);
+    return true;
+  };
+
+  // 1.6 Expense Management Methods & Workflows
+  // Auto-approval rule: Admin designation or Super Admin requires NO approval
+  const isAutoApproveEligible = (userObj) => {
+    if (!userObj) return false;
+    if (userObj.role === 'Super Admin' || userObj.role === 'Admin') return true;
+    const pos = (userObj.position || '').toLowerCase();
+    return pos.includes('admin') || pos.includes('director') || pos.includes('manager') || pos.includes('lead');
+  };
+
+  const addExpense = async (expenseData) => {
+    const highestNum = (expenses || []).reduce((max, exp) => {
+      const num = parseInt(String(exp.id).replace(/[^0-9]/g, ''), 10);
+      return !isNaN(num) && num > max ? num : max;
+    }, 1000);
+    const expId = `EXP-${highestNum + 1}`;
+
+    const autoApprove = isAutoApproveEligible(currentUser);
+
+    const newExpense = {
+      id: expId,
+      title: expenseData.title?.trim() || `${expenseData.category || 'General'} Expense`,
+      category: expenseData.category || 'Fuel', // Fuel, Food, Travel, Other
+      expenseType: expenseData.expenseType || (expenseData.clientId ? 'client' : 'daily'), // 'daily' | 'client'
+      clientId: expenseData.clientId || null,
+      clientName: expenseData.clientName || '',
+      amount: parseFloat(expenseData.amount) || 0,
+      date: expenseData.date || getTodayDateString(),
+      description: expenseData.description?.trim() || '',
+      receiptNo: expenseData.receiptNo?.trim() || '',
+      createdBy: {
+        id: currentUser?.employeeId || currentUser?.uid || 'super-admin',
+        name: currentUser?.name || 'Super Admin',
+        email: currentUser?.email || '',
+        role: currentUser?.role || 'Super Admin',
+        position: currentUser?.position || (currentUser?.role === 'Super Admin' ? 'Super Admin' : 'Staff'),
+        department: currentUser?.department || 'Operations'
+      },
+      status: autoApprove ? 'Approved' : 'Pending', // Admin: Approved directly; Other designations: Pending
+      approvedBy: autoApprove ? (currentUser?.name || 'Super Admin') : null,
+      approvedAt: autoApprove ? new Date().toISOString() : null,
+      approvalNote: autoApprove ? 'Auto-approved for Admin designation' : null,
+      rejectedBy: null,
+      rejectedAt: null,
+      rejectionReason: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+
+    const nextExpenses = [newExpense, ...expenses];
+    setExpenses(nextExpenses);
+    try {
+      localStorage.setItem('setu_crm_expenses', JSON.stringify(nextExpenses));
+    } catch (e) {}
+
+    await saveFirestoreDoc('expenses', newExpense.id, newExpense);
+    return { success: true, expense: newExpense };
+  };
+
+  const updateExpense = async (id, updatedFields) => {
+    const existing = expenses.find(e => e.id === id);
+    if (!existing) return { success: false, error: 'Expense not found' };
+
+    const updated = {
+      ...existing,
+      ...updatedFields,
+      updatedAt: new Date().toISOString()
+    };
+
+    const next = expenses.map(e => e.id === id ? updated : e);
+    setExpenses(next);
+    try {
+      localStorage.setItem('setu_crm_expenses', JSON.stringify(next));
+    } catch (e) {}
+
+    await saveFirestoreDoc('expenses', id, updated);
+    return { success: true, expense: updated };
+  };
+
+  const approveExpense = async (id, note = '') => {
+    const existing = expenses.find(e => e.id === id);
+    if (!existing) return { success: false, error: 'Expense not found' };
+
+    const updated = {
+      ...existing,
+      status: 'Approved',
+      approvedBy: currentUser?.name || 'Super Admin',
+      approvedAt: new Date().toISOString(),
+      approvalNote: note || 'Approved by Administrator',
+      rejectedBy: null,
+      rejectedAt: null,
+      rejectionReason: null,
+      updatedAt: new Date().toISOString()
+    };
+
+    const next = expenses.map(e => e.id === id ? updated : e);
+    setExpenses(next);
+    try {
+      localStorage.setItem('setu_crm_expenses', JSON.stringify(next));
+    } catch (e) {}
+
+    await saveFirestoreDoc('expenses', id, updated);
+    return { success: true, expense: updated };
+  };
+
+  const rejectExpense = async (id, reason = '') => {
+    const existing = expenses.find(e => e.id === id);
+    if (!existing) return { success: false, error: 'Expense not found' };
+
+    const updated = {
+      ...existing,
+      status: 'Rejected',
+      rejectedBy: currentUser?.name || 'Super Admin',
+      rejectedAt: new Date().toISOString(),
+      rejectionReason: reason || 'Rejected by Administrator',
+      updatedAt: new Date().toISOString()
+    };
+
+    const next = expenses.map(e => e.id === id ? updated : e);
+    setExpenses(next);
+    try {
+      localStorage.setItem('setu_crm_expenses', JSON.stringify(next));
+    } catch (e) {}
+
+    await saveFirestoreDoc('expenses', id, updated);
+    return { success: true, expense: updated };
+  };
+
+  const deleteExpense = async (id) => {
+    const next = expenses.filter(e => e.id !== id);
+    setExpenses(next);
+    try {
+      localStorage.setItem('setu_crm_expenses', JSON.stringify(next));
+    } catch (e) {}
+
+    await deleteFirestoreDoc('expenses', id);
+    return { success: true };
+  };
+
   return (
     <CRMContext.Provider value={{
+      authUser,
       currentUser,
       setCurrentUser,
+      authLoading,
+      authError,
+      setAuthError,
+      login,
+      logout,
+      employees,
+      setEmployees,
+      addEmployee,
+      updateEmployee,
+      toggleEmployeeStatus,
+      deleteEmployee,
+      verifyEmployeeForSetup,
+      completeEmployeePasswordSetup,
       leads,
       setLeads,
       clients,
@@ -929,10 +2351,31 @@ export const CRMProvider = ({ children }) => {
       reminders,
       whatsappLogs,
       templates,
+      followUps,
+      expenses,
+      setExpenses,
+      addExpense,
+      updateExpense,
+      approveExpense,
+      rejectExpense,
+      deleteExpense,
+      isAutoApproveEligible,
+      dismissedAlertIds,
+      cloudSyncStatus,
+      addFollowUp,
+      completeFollowUp,
+      rescheduleFollowUp,
+      deleteFollowUp,
+      dismissFollowUpAlert,
       getTodayDateString,
       addLead,
+      updateLead,
       updateLeadStatus,
       deleteLead,
+      convertWonLeadToClient,
+      convertToClient,
+      updateClient,
+      deleteClient,
       addQuotation,
       updateQuotation,
       updateQuotationStatus,
@@ -947,7 +2390,22 @@ export const CRMProvider = ({ children }) => {
       triggerClientReminderImmediately,
       deleteReminder,
       updateTemplate,
-      addWhatsAppLog
+      addWhatsAppLog,
+      recordCallAttempt,
+      bulkAssignLeads,
+      coldLeads,
+      setColdLeads,
+      detectPhoneDuplicate,
+      addColdLead,
+      bulkImportColdLeads,
+      recordColdCallAttempt,
+      convertColdLeadToLead,
+      updateColdLead,
+      deleteColdLead,
+      bulkAssignColdLeads,
+      toggleColdLeadDNC,
+      normalizePhoneNumber,
+      formatPhoneForDisplay
     }}>
       {children}
     </CRMContext.Provider>

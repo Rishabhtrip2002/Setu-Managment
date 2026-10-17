@@ -2,35 +2,35 @@
 @import "tailwindcss";
 
 @theme {
-  --color-brand-50: #f0fdf4;
-  --color-brand-100: #dcfce7;
-  --color-brand-200: #bbf7d0;
-  --color-brand-300: #86efac;
-  --color-brand-400: #4ade80;
-  --color-brand-500: #22c55e;
-  --color-brand-600: #16a34a;
-  --color-brand-700: #15803d;
-  --color-brand-800: #166534;
-  --color-brand-900: #14532d;
-  --color-brand-950: #052e16;
+  --color-brand-50: #fff7ed;
+  --color-brand-100: #ffedd5;
+  --color-brand-200: #fed7aa;
+  --color-brand-300: #fdba74;
+  --color-brand-400: #fb923c;
+  --color-brand-500: #f97316;
+  --color-brand-600: #ea580c;
+  --color-brand-700: #c2410c;
+  --color-brand-800: #9a3412;
+  --color-brand-900: #7c2d12;
+  --color-brand-950: #431407;
 
-  --color-navy-50: #f4f6fa;
-  --color-navy-100: #e9edf5;
-  --color-navy-200: #ced8ea;
-  --color-navy-300: #a3b8d9;
-  --color-navy-400: #7292c3;
-  --color-navy-500: #4f72ab;
-  --color-navy-600: #3c5a8d;
-  --color-navy-700: #314972;
-  --color-navy-800: #2c3e5e;
-  --color-navy-900: #28364f;
-  --color-navy-950: #1b2334;
+  --color-navy-50: #f8fafc;
+  --color-navy-100: #f1f5f9;
+  --color-navy-200: #e2e8f0;
+  --color-navy-300: #cbd5e1;
+  --color-navy-400: #94a3b8;
+  --color-navy-500: #64748b;
+  --color-navy-600: #475569;
+  --color-navy-700: #334155;
+  --color-navy-800: #1e293b;
+  --color-navy-900: #0f172a;
+  --color-navy-950: #020617;
 
   --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
 }
 
 body {
-  @apply bg-slate-950 text-slate-100 antialiased font-sans selection:bg-brand-500/30 selection:text-brand-200;
+  @apply bg-slate-50 text-slate-800 antialiased font-sans selection:bg-brand-500/20 selection:text-brand-700;
 }
 
 /* Custom Scrollbar for premium feel */
@@ -40,34 +40,35 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-slate-950;
+  @apply bg-slate-100;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-slate-800 rounded-full hover:bg-slate-700 transition-colors;
+  @apply bg-slate-300 rounded-full hover:bg-slate-400 transition-colors;
 }
 
 /* Glassmorphism styling */
 .glass {
-  background: rgba(30, 41, 59, 0.7);
+  background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(226, 232, 240, 0.8);
 }
 
 .glass-card {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
 }
 
 /* Grid background utility */
 .bg-grid-pattern {
-  background-size: 30px 30px;
+  background-size: 28px 28px;
   background-image: 
-    linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
-    linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+    linear-gradient(to right, rgba(148, 163, 184, 0.08) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(148, 163, 184, 0.08) 1px, transparent 1px);
 }
 
 /* Micro animations */
@@ -76,7 +77,7 @@ body {
 }
 
 .hover-glow-brand {
-  @apply transition-all duration-300 hover:shadow-[0_0_15px_rgba(34,197,94,0.15)];
+  @apply transition-all duration-300 hover:shadow-[0_0_15px_rgba(249,115,22,0.25)];
 }
 
 /* Print Specific Rules for invoices */

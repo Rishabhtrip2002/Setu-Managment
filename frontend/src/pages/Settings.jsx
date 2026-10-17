@@ -9,10 +9,10 @@ import {
   AlertTriangle, 
   CheckCircle, 
   XOctagon, 
-  Clock,
-  User,
+  Clock, 
   IndianRupee,
-  RefreshCw
+  Building2,
+  FileText
 } from 'lucide-react';
 
 const SettingsPage = () => {
@@ -74,18 +74,18 @@ const SettingsPage = () => {
 
   const getReminderBadge = (status) => {
     switch (status) {
-      case 'Sent': return 'bg-brand-500/10 text-brand-400 border border-brand-500/20';
-      case 'Pending': return 'bg-slate-800 text-slate-400 border border-slate-700/50';
-      case 'Failed': return 'bg-rose-500/10 text-rose-400 border border-rose-500/20';
-      default: return 'bg-slate-850 text-slate-500 border border-slate-800';
+      case 'Sent': return 'bg-emerald-50 text-emerald-700 border border-emerald-200';
+      case 'Pending': return 'bg-amber-50 text-amber-700 border border-amber-200';
+      case 'Failed': return 'bg-rose-50 text-rose-700 border border-rose-200';
+      default: return 'bg-slate-100 text-slate-600 border border-slate-200';
     }
   };
 
   const getReminderIcon = (status) => {
     switch (status) {
-      case 'Sent': return <CheckCircle className="w-3.5 h-3.5" />;
-      case 'Pending': return <Clock className="w-3.5 h-3.5" />;
-      case 'Failed': return <XOctagon className="w-3.5 h-3.5" />;
+      case 'Sent': return <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />;
+      case 'Pending': return <Clock className="w-3.5 h-3.5 text-amber-600" />;
+      case 'Failed': return <XOctagon className="w-3.5 h-3.5 text-rose-600" />;
       default: return null;
     }
   };
@@ -107,19 +107,28 @@ const SettingsPage = () => {
   return (
     <div className="space-y-6">
       
-      {/* Title */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-slate-900 flex items-center justify-center border border-slate-800 text-brand-400">
-          <Settings className="w-5 h-5 animate-spin-[spin_10s_linear_infinite]" />
+      {/* Welcome / Title Banner */}
+      <div className="p-6 bg-gradient-to-r from-orange-50 via-white to-amber-50 border border-orange-200/90 rounded-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-xs">
+        <div className="flex items-center gap-3.5">
+          <div className="w-11 h-11 rounded-2xl bg-orange-100 border border-orange-300 flex items-center justify-center text-orange-600 shrink-0">
+            <Settings className="w-5 h-5 animate-spin-[spin_10s_linear_infinite]" />
+          </div>
+          <div>
+            <h2 className="text-lg font-black text-slate-900">System Configuration</h2>
+            <p className="text-xs text-slate-600 mt-0.5">Manage WhatsApp Business templates, reminder automation, and overdue ledgers.</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-base font-extrabold text-slate-200">System Configuration</h2>
-          <p className="text-xs text-slate-400 mt-0.5">Manage simulated notification channels, API templates, and schedules.</p>
+
+        <div className="flex items-center gap-2">
+          <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white border border-slate-200 text-slate-700 shadow-2xs">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>API Gateway Active</span>
+          </span>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="flex px-4 border-b border-slate-850 bg-slate-900/10">
+      <div className="flex bg-white border border-slate-200 rounded-2xl p-1.5 shadow-2xs gap-1.5 overflow-x-auto">
         {[
           { id: 'templates', label: 'WhatsApp Templates', icon: MessageSquare },
           { id: 'reminders', label: 'Reminders Scheduler Log', icon: BellRing },
@@ -131,10 +140,10 @@ const SettingsPage = () => {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-bold uppercase tracking-wider rounded-xl transition-all cursor-pointer whitespace-nowrap ${
                 active 
-                  ? 'border-brand-500 text-brand-400' 
-                  : 'border-transparent text-slate-400 hover:text-slate-200'
+                  ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-xs' 
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/80'
               }`}
             >
               <Icon className="w-4 h-4" />
@@ -145,15 +154,15 @@ const SettingsPage = () => {
       </div>
 
       {/* Tab Contents */}
-      <div className="p-6 bg-slate-900/20 border border-slate-800 rounded-2xl">
+      <div className="p-6 bg-white border border-slate-200 rounded-2xl shadow-xs">
         
         {/* Tab 1: WhatsApp Templates */}
         {activeTab === 'templates' && (
           <div className="space-y-6">
-            <div className="p-4 bg-brand-500/5 border border-brand-500/15 rounded-xl">
-              <p className="text-xs text-brand-300 leading-relaxed font-medium">
+            <div className="p-4 bg-orange-50/70 border border-orange-200 rounded-xl">
+              <p className="text-xs text-orange-900 leading-relaxed font-medium">
                 <strong>WhatsApp Business API Connected</strong>. Below are the pre-configured system triggers. 
-                Any event in the CRM (sending quotes, receipts, reminders, status updates) automatically 
+                Any event in the CRM (sending quotes, invoices, payment reminders, status updates) automatically 
                 triggers messages styled from these templates in client conversation logs.
               </p>
             </div>
@@ -162,24 +171,26 @@ const SettingsPage = () => {
               {templates.map(tmpl => {
                 const isEditing = editingTemplateId === tmpl.id;
                 return (
-                  <div key={tmpl.id} className="p-5 bg-slate-950/40 border border-slate-850 rounded-2xl space-y-3">
+                  <div key={tmpl.id} className="p-5 bg-slate-50/80 border border-slate-200 rounded-2xl space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
-                        <span className="text-xs font-mono font-bold text-slate-500">{tmpl.id}</span>
-                        <h4 className="text-sm font-bold text-slate-200 mt-1">{tmpl.name}</h4>
+                        <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-orange-600 bg-orange-50 px-2 py-0.5 rounded-md border border-orange-200/80">
+                          {tmpl.id}
+                        </span>
+                        <h4 className="text-sm font-bold text-slate-900 mt-1">{tmpl.name}</h4>
                       </div>
                       
                       {!isEditing ? (
                         <button
                           onClick={() => handleEditTemplate(tmpl)}
-                          className="px-3.5 py-1.5 text-xs font-bold text-slate-300 bg-slate-800 hover:bg-slate-750 border border-slate-700/50 rounded-lg hover-scale"
+                          className="px-3.5 py-1.5 text-xs font-bold text-slate-700 bg-white hover:bg-slate-100 border border-slate-200 rounded-xl hover-scale shadow-2xs"
                         >
                           Modify
                         </button>
                       ) : (
                         <button
                           onClick={() => handleSaveTemplate(tmpl.id)}
-                          className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-slate-950 bg-brand-400 hover:bg-brand-500 rounded-lg hover-scale"
+                          className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale shadow-xs"
                         >
                           <Save className="w-3.5 h-3.5" />
                           <span>Save Template</span>
@@ -188,19 +199,19 @@ const SettingsPage = () => {
                     </div>
 
                     {!isEditing ? (
-                      <div className="p-3 bg-slate-950/60 border border-slate-900 rounded-xl">
-                        <p className="text-xs text-slate-400 leading-relaxed font-mono whitespace-pre-wrap">{tmpl.template}</p>
+                      <div className="p-3.5 bg-white border border-slate-200 rounded-xl shadow-2xs">
+                        <p className="text-xs text-slate-700 leading-relaxed font-mono whitespace-pre-wrap">{tmpl.template}</p>
                       </div>
                     ) : (
                       <div className="space-y-2">
                         <textarea
                           rows="3"
-                          className="w-full p-3 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-xs font-mono text-slate-200 outline-none resize-none"
+                          className="w-full p-3 bg-white border border-slate-300 focus:border-orange-500 focus:ring-2 focus:ring-orange-500/20 rounded-xl text-xs font-mono text-slate-800 outline-none resize-none"
                           value={templateText}
                           onChange={e => setTemplateText(e.target.value)}
                         />
                         <p className="text-[10px] text-slate-500 italic">
-                          Placeholders: <code>{`{{clientName}}`}</code>, <code>{`{{quoteId}}`}</code>, <code>{`{{totalAmount}}`}</code>, <code>{`{{pdfUrl}}`}</code>, <code>{`{{amount}}`}</code>, <code>{`{{dueDate}}`}</code>, <code>{`{{leadName}}`}</code>
+                          Placeholders: <code className="bg-slate-100 px-1 py-0.5 rounded text-orange-600 font-bold">{`{{clientName}}`}</code>, <code className="bg-slate-100 px-1 py-0.5 rounded text-orange-600 font-bold">{`{{quoteId}}`}</code>, <code className="bg-slate-100 px-1 py-0.5 rounded text-orange-600 font-bold">{`{{totalAmount}}`}</code>, <code className="bg-slate-100 px-1 py-0.5 rounded text-orange-600 font-bold">{`{{amount}}`}</code>, <code className="bg-slate-100 px-1 py-0.5 rounded text-orange-600 font-bold">{`{{dueDate}}`}</code>
                         </p>
                       </div>
                     )}
@@ -214,65 +225,65 @@ const SettingsPage = () => {
         {/* Tab 2: Reminders Log */}
         {activeTab === 'reminders' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-850">
-              <h3 className="text-sm font-bold text-slate-300">Scheduled Automation Log</h3>
-              <span className="text-[10px] text-slate-500 font-bold">Auto-scheduled on Instalment Due Dates</span>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h3 className="text-sm font-bold text-slate-800">Scheduled Automation Log</h3>
+              <span className="text-[11px] text-slate-500 font-semibold">Auto-scheduled on Instalment Due Dates</span>
             </div>
 
-            <div className="overflow-hidden border border-slate-850 bg-slate-950/30 rounded-2xl">
+            <div className="overflow-hidden border border-slate-200 rounded-2xl shadow-2xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-slate-850 bg-slate-950/60 text-slate-400 font-bold uppercase tracking-wider">
-                      <th className="px-5 py-3">Client</th>
-                      <th className="px-5 py-3">Split Amount</th>
-                      <th className="px-5 py-3">Due Date</th>
-                      <th className="px-5 py-3">Trigger Schedule</th>
-                      <th className="px-5 py-3">Status</th>
-                      <th className="px-5 py-3 text-right">Actions</th>
+                    <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                      <th className="px-5 py-3.5">Client</th>
+                      <th className="px-5 py-3.5">Split Amount</th>
+                      <th className="px-5 py-3.5">Due Date</th>
+                      <th className="px-5 py-3.5">Trigger Schedule</th>
+                      <th className="px-5 py-3.5">Status</th>
+                      <th className="px-5 py-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-850 text-slate-300">
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
                     {reminders.map(rem => (
-                      <tr key={rem.id} className="hover:bg-slate-950/10">
-                        <td className="px-5 py-3 font-semibold text-slate-200">
+                      <tr key={rem.id} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-5 py-3.5 font-bold text-slate-900">
                           {rem.clientName}
-                          <p className="text-[10px] text-slate-500 font-mono mt-0.5">{rem.phone}</p>
+                          <p className="text-[10px] text-slate-500 font-mono font-normal mt-0.5">{rem.phone}</p>
                         </td>
-                        <td className="px-5 py-3 font-bold text-brand-400">
+                        <td className="px-5 py-3.5 font-bold text-orange-600">
                           {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(rem.amount)}
                         </td>
-                        <td className="px-5 py-3 text-slate-400">{rem.dueDate}</td>
-                        <td className="px-5 py-3">
-                          <span className="font-semibold text-slate-300 capitalize">{rem.triggerType.replace('_', ' ')}</span>
+                        <td className="px-5 py-3.5 text-slate-600 font-medium">{rem.dueDate}</td>
+                        <td className="px-5 py-3.5">
+                          <span className="font-semibold text-slate-800 capitalize">{rem.triggerType.replace('_', ' ')}</span>
                           <p className="text-[10px] text-slate-500 mt-0.5">Exec: {rem.scheduledFor}</p>
                         </td>
-                        <td className="px-5 py-3">
-                          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold ${getReminderBadge(rem.status)}`}>
+                        <td className="px-5 py-3.5">
+                          <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${getReminderBadge(rem.status)}`}>
                             {getReminderIcon(rem.status)}
                             <span>{rem.status}</span>
                           </span>
                           {rem.sentDate && <p className="text-[9px] text-slate-500 mt-0.5">Sent: {rem.sentDate}</p>}
                         </td>
-                        <td className="px-5 py-3 text-right">
+                        <td className="px-5 py-3.5 text-right">
                           <div className="flex items-center justify-end gap-2">
                             {rem.status !== 'Sent' && (
                               <button
                                 onClick={() => handleSendReminderImmediately(rem.id)}
-                                className="px-2.5 py-1 text-[9px] font-extrabold uppercase bg-brand-400 hover:bg-brand-500 text-slate-950 rounded-lg hover-scale flex items-center gap-1"
+                                className="px-2.5 py-1 text-[10px] font-bold uppercase bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-lg hover-scale flex items-center gap-1 shadow-2xs"
                                 title="Force run reminder immediately via WhatsApp"
                               >
                                 <Send className="w-2.5 h-2.5" />
                                 <span>Remind</span>
                               </button>
                             )}
-                            {currentUser.role === 'Admin' && (
+                            {(currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') && (
                               <button
                                 onClick={() => handleRemoveReminder(rem.id)}
-                                className="p-1 rounded text-slate-500 hover:text-red-400 hover:bg-slate-800"
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
                                 title="Delete schedule"
                               >
-                                <XOctagon className="w-3.5 h-3.5" />
+                                <XOctagon className="w-4 h-4" />
                               </button>
                             )}
                           </div>
@@ -282,7 +293,7 @@ const SettingsPage = () => {
 
                     {reminders.length === 0 && (
                       <tr>
-                        <td colSpan="6" className="text-center py-10 text-slate-500">
+                        <td colSpan="6" className="text-center py-12 text-slate-500 font-medium">
                           No auto-scheduled payment reminders in log.
                         </td>
                       </tr>
@@ -297,50 +308,48 @@ const SettingsPage = () => {
         {/* Tab 3: Overdue Accounts */}
         {activeTab === 'overdue' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-850">
-              <h3 className="text-sm font-bold text-slate-300">Overdue Ledger accounts</h3>
-              <span className="px-2 py-0.5 text-xs font-bold text-rose-400 bg-rose-500/10 border border-rose-500/20 rounded-full">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+              <h3 className="text-sm font-bold text-slate-800">Overdue Ledger Accounts</h3>
+              <span className="px-2.5 py-0.5 text-xs font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded-full">
                 {overdueClients.length} accounts critical
               </span>
             </div>
 
-            <div className="overflow-hidden border border-slate-850 bg-slate-950/30 rounded-2xl">
+            <div className="overflow-hidden border border-slate-200 rounded-2xl shadow-2xs">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
-                    <tr className="border-b border-slate-850 bg-slate-950/60 text-slate-400 font-bold uppercase tracking-wider">
-                      <th className="px-5 py-3">Client Recipient</th>
-                      <th className="px-5 py-3">Total Overdue Amount</th>
-                      <th className="px-5 py-3">Oldest Unpaid Date</th>
-                      <th className="px-5 py-3">Overdue Parts</th>
-                      <th className="px-5 py-3 text-right">Actions</th>
+                    <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
+                      <th className="px-5 py-3.5">Client Recipient</th>
+                      <th className="px-5 py-3.5">Total Overdue Amount</th>
+                      <th className="px-5 py-3.5">Oldest Unpaid Date</th>
+                      <th className="px-5 py-3.5">Overdue Parts</th>
+                      <th className="px-5 py-3.5 text-right">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-850 text-slate-300">
+                  <tbody className="divide-y divide-slate-100 text-slate-700">
                     {overdueClients.map(c => (
-                      <tr key={c.clientId} className="hover:bg-slate-950/10">
-                        <td className="px-5 py-3">
-                          <span className="font-semibold text-slate-200">{c.name}</span>
+                      <tr key={c.clientId} className="hover:bg-slate-50/70 transition-colors">
+                        <td className="px-5 py-3.5">
+                          <span className="font-bold text-slate-900">{c.name}</span>
                           <p className="text-[10px] text-slate-500 mt-0.5">{c.companyName}</p>
                         </td>
-                        <td className="px-5 py-3 font-black text-rose-400">
+                        <td className="px-5 py-3.5 font-black text-rose-600">
                           {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(c.totalOverdue)}
                         </td>
-                        <td className="px-5 py-3">
-                          <span className="font-semibold text-slate-400">{c.oldestDueDate}</span>
-                          <p className="text-[9px] text-rose-500/80 font-bold mt-0.5 font-mono">CRITICAL OVERDUE</p>
+                        <td className="px-5 py-3.5">
+                          <span className="font-semibold text-slate-700">{c.oldestDueDate}</span>
+                          <p className="text-[9px] text-rose-600 font-bold mt-0.5 font-mono">CRITICAL OVERDUE</p>
                         </td>
-                        <td className="px-5 py-3 text-slate-300 font-medium">
+                        <td className="px-5 py-3.5 text-slate-600 font-medium">
                           {c.instalmentsCount} unpaid splits
                         </td>
-                        <td className="px-5 py-3 text-right">
+                        <td className="px-5 py-3.5 text-right">
                           <button
                             onClick={() => {
-                              // Trigger an immediate custom reminder
-                              const text = `URGENT REMINDER: Dear ${c.name}, you have outstanding invoices totaling ${new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(c.totalOverdue)} past due since ${c.oldestDueDate}. Please clear immediately.`;
-                              alert(`Urgent collection alert fired via WhatsApp to ${c.name} (${c.phone}). Log updated.`);
+                              alert(`Urgent collection alert dispatched via WhatsApp to ${c.name} (${c.phone}). Log updated.`);
                             }}
-                            className="px-3 py-1.5 text-[10px] font-extrabold uppercase bg-rose-500 hover:bg-rose-600 text-slate-950 rounded-xl hover-scale transition-colors"
+                            className="px-3 py-1.5 text-[10px] font-bold uppercase bg-rose-500 hover:bg-rose-600 text-white rounded-xl hover-scale transition-colors shadow-2xs cursor-pointer"
                           >
                             Collect Now
                           </button>
@@ -350,7 +359,7 @@ const SettingsPage = () => {
 
                     {overdueClients.length === 0 && (
                       <tr>
-                        <td colSpan="5" className="text-center py-10 text-brand-400 bg-brand-500/5 font-semibold">
+                        <td colSpan="5" className="text-center py-12 text-emerald-700 bg-emerald-50/40 font-bold">
                           Excellent! All invoices are fully paid or ahead of schedule. Zero overdue balances.
                         </td>
                       </tr>

@@ -18,18 +18,22 @@ import {
   ChevronRight, 
   AlertTriangle,
   Lock,
-  ArrowRightLeft
+  ArrowRightLeft,
+  FileSpreadsheet,
+  CheckCircle2
 } from 'lucide-react';
 
 const Reports = () => {
   const { leads, clients, payments, getTodayDateString, currentUser } = useCRM();
 
   // Role Access check
-  if (currentUser.role !== 'Admin') {
+  if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Super Admin') {
     return (
-      <div className="h-[60vh] border border-slate-800 bg-slate-900/30 rounded-2xl flex flex-col items-center justify-center text-center p-6">
-        <Lock className="w-12 h-12 text-rose-500 mb-4 animate-bounce" />
-        <h3 className="text-base font-extrabold text-slate-200">Access Restricted</h3>
+      <div className="h-[60vh] border border-slate-200 bg-white rounded-2xl flex flex-col items-center justify-center text-center p-6 shadow-sm">
+        <div className="w-16 h-16 rounded-2xl bg-rose-50 border border-rose-200 text-rose-500 flex items-center justify-center mb-4">
+          <Lock className="w-8 h-8" />
+        </div>
+        <h3 className="text-base font-extrabold text-slate-900">Access Restricted</h3>
         <p className="text-xs text-slate-500 mt-2 max-w-md">
           You are logged in as a Staff member. The Reports & Analytics interface is restricted to Admin roles only. Contact your system director for details.
         </p>
@@ -51,32 +55,38 @@ const Reports = () => {
   const totalLeads = leads.length;
   const conversionRate = totalLeads > 0 ? Math.round((wonCount / totalLeads) * 100) : 0;
 
-  // 2. Monthly Revenue collected chart data (Grouping instalments by paid month)
-  // Let's analyze April, May, June 2026
-  const monthlyRevenueMap = {
-    '2026-04': 0,
-    '2026-05': 0,
-    '2026-06': 0
-  };
+  // 2. Monthly Revenue collected chart data (Grouping instalments dynamically by rolling last 6 months)
+  const rollingMonths = [];
+  const baseDate = new Date();
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(baseDate.getFullYear(), baseDate.getMonth() - i, 1);
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const key = `${yyyy}-${mm}`;
+    const label = d.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+    rollingMonths.push({ key, label });
+  }
+
+  const monthlyRevenueMap = {};
+  rollingMonths.forEach(m => { monthlyRevenueMap[m.key] = 0; });
 
   payments.forEach(p => {
-    p.instalments.forEach(inst => {
+    (p.instalments || []).forEach(inst => {
       if (inst.status === 'Paid' && inst.paidDate) {
-        const month = inst.paidDate.substring(0, 7); // YYYY-MM
+        const month = String(inst.paidDate).substring(0, 7); // YYYY-MM
         if (monthlyRevenueMap[month] !== undefined) {
-          monthlyRevenueMap[month] += inst.amount;
+          monthlyRevenueMap[month] += (Number(inst.amount) || 0);
         } else {
-          monthlyRevenueMap[month] = inst.amount;
+          monthlyRevenueMap[month] = (Number(inst.amount) || 0);
         }
       }
     });
   });
 
-  const chartData = [
-    { name: 'Apr 2026', Amount: monthlyRevenueMap['2026-04'] },
-    { name: 'May 2026', Amount: monthlyRevenueMap['2026-05'] },
-    { name: 'Jun 2026', Amount: monthlyRevenueMap['2026-06'] }
-  ];
+  const chartData = rollingMonths.map(m => ({
+    name: m.label,
+    Amount: monthlyRevenueMap[m.key] || 0
+  }));
 
   // 3. Overdue Ageing Table calculation
   // Brackets: 0-30 Days, 30-60 Days, 60+ Days
@@ -107,13 +117,13 @@ const Reports = () => {
 
         const account = ageingAccountsMap[client.id];
         if (diffDays <= 30) {
-          account.bracket1 += inst.amount;
+          account.bracket1 += Number(inst.amount) || 0;
         } else if (diffDays <= 60) {
-          account.bracket2 += inst.amount;
+          account.bracket2 += Number(inst.amount) || 0;
         } else {
-          account.bracket3 += inst.amount;
+          account.bracket3 += Number(inst.amount) || 0;
         }
-        account.totalOverdue += inst.amount;
+        account.totalOverdue += Number(inst.amount) || 0;
       }
     });
   });
@@ -123,17 +133,43 @@ const Reports = () => {
   return (
     <div className="space-y-6">
       
+      {/* Top Banner (Matches Light CRM Theme) */}
+      <div className="p-6 bg-gradient-to-r from-orange-50 via-white to-amber-50 border border-orange-200/90 rounded-2xl flex flex-col md:flex-row md:items-center justify-between gap-4 shadow-sm">
+        <div>
+          <div className="flex items-center gap-2.5">
+            <div className="p-2.5 rounded-2xl bg-orange-100 text-orange-600 border border-orange-200">
+              <TrendingUp className="w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 font-sans">
+                Reports & Performance Analytics
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-500 mt-0.5">
+                Pipeline conversion funnel, monthly collections trajectory, and outstanding ageing schedules.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <div className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 shadow-xs flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+            <span>Lead Conversion: <strong className="text-orange-600 font-extrabold">{conversionRate}%</strong></span>
+          </div>
+        </div>
+      </div>
+
       {/* Funnel & Revenue grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 items-start">
         
         {/* Lead Conversion Funnel */}
-        <div className="p-5 bg-slate-900/40 border border-slate-800 rounded-2xl space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-850">
+        <div className="p-5 bg-white border border-slate-200 shadow-sm rounded-2xl space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Conversion Funnel</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">Conversion Funnel</h3>
               <p className="text-[10px] text-slate-500 mt-0.5">Analysis of deals along stages</p>
             </div>
-            <span className="px-2.5 py-0.5 text-xs font-bold text-brand-400 bg-brand-500/10 border border-brand-500/20 rounded-full">
+            <span className="px-2.5 py-0.5 text-xs font-bold text-orange-600 bg-orange-50 border border-orange-200 rounded-full">
               {conversionRate}% Won Rate
             </span>
           </div>
@@ -145,20 +181,20 @@ const Reports = () => {
               const percent = Math.round((stage.count / maxCount) * 100);
               return (
                 <div key={idx} className="space-y-1">
-                  <div className="flex justify-between text-xs font-semibold text-slate-400">
-                    <span className="text-slate-300">{stage.stage}</span>
-                    <span>{stage.count} leads</span>
+                  <div className="flex justify-between text-xs font-semibold text-slate-600">
+                    <span className="text-slate-800 font-bold">{stage.stage}</span>
+                    <span className="font-mono text-slate-500">{stage.count} leads</span>
                   </div>
-                  <div className="w-full bg-slate-950 h-6 rounded-lg overflow-hidden border border-slate-850 flex items-center p-[2px]">
+                  <div className="w-full bg-slate-100 h-6 rounded-xl overflow-hidden border border-slate-200/80 flex items-center p-0.5">
                     <div 
-                      className={`h-full rounded-md transition-all duration-500 flex items-center justify-end pr-2 text-[9px] font-black text-slate-950 ${
-                        stage.stage === 'Won' ? 'bg-gradient-to-r from-emerald-500 to-brand-500' :
-                        stage.stage === 'Lost' ? 'bg-rose-500/40 text-slate-400' :
-                        'bg-gradient-to-r from-slate-800 to-indigo-600'
+                      className={`h-full rounded-lg transition-all duration-500 flex items-center justify-end pr-2 text-[10px] font-bold ${
+                        stage.stage === 'Won' ? 'bg-gradient-to-r from-emerald-500 to-amber-500 text-white shadow-xs' :
+                        stage.stage === 'Lost' ? 'bg-rose-400 text-white' :
+                        'bg-gradient-to-r from-orange-500 to-amber-400 text-white shadow-xs'
                       }`}
-                      style={{ width: `${percent || 5}%` }}
+                      style={{ width: `${Math.max(percent, stage.count > 0 ? 12 : 3)}%` }}
                     >
-                      {percent > 10 && `${percent}%`}
+                      {stage.count > 0 && `${stage.count}`}
                     </div>
                   </div>
                 </div>
@@ -168,33 +204,42 @@ const Reports = () => {
         </div>
 
         {/* Monthly collected Revenue chart */}
-        <div className="p-5 bg-slate-900/40 border border-slate-800 rounded-2xl space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-850">
+        <div className="p-5 bg-white border border-slate-200 shadow-sm rounded-2xl space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
             <div>
-              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Revenue Collections</h3>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">Revenue Collections</h3>
               <p className="text-[10px] text-slate-500 mt-0.5">Total funds collected monthly</p>
             </div>
-            <TrendingUp className="w-4 h-4 text-brand-400" />
+            <div className="p-2 rounded-xl bg-orange-50 text-orange-600 border border-orange-200">
+              <TrendingUp className="w-4 h-4" />
+            </div>
           </div>
 
           {/* Area Chart */}
           <div className="h-64 pt-4">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -10, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorRevenue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#22c55e" stopOpacity={0.25}/>
-                    <stop offset="95%" stopColor="#22c55e" stopOpacity={0}/>
+                    <stop offset="5%" stopColor="#f97316" stopOpacity={0.25}/>
+                    <stop offset="95%" stopColor="#f97316" stopOpacity={0}/>
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={10} />
-                <YAxis stroke="#94a3b8" fontSize={10} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+                <XAxis dataKey="name" stroke="#94a3b8" fontSize={11} />
+                <YAxis stroke="#94a3b8" fontSize={11} tickFormatter={(val) => `₹${val >= 1000 ? `${(val/1000).toFixed(0)}k` : val}`} />
                 <Tooltip 
-                  contentStyle={{ backgroundColor: '#0f172a', borderColor: '#1e293b', borderRadius: '12px', fontSize: '11px', color: '#f8fafc' }}
-                  formatter={(value) => [`₹${value.toLocaleString()}`, 'Revenue']}
+                  contentStyle={{ 
+                    backgroundColor: '#ffffff', 
+                    borderColor: '#e2e8f0', 
+                    borderRadius: '16px', 
+                    fontSize: '12px', 
+                    color: '#0f172a',
+                    boxShadow: '0 10px 25px -5px rgba(0,0,0,0.1)'
+                  }}
+                  formatter={(value) => [`₹${Number(value).toLocaleString('en-IN')}`, 'Revenue']}
                 />
-                <Area type="monotone" dataKey="Amount" stroke="#22c55e" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
+                <Area type="monotone" dataKey="Amount" stroke="#f97316" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -203,20 +248,22 @@ const Reports = () => {
       </div>
 
       {/* Ageing Table Section */}
-      <div className="p-5 bg-slate-900/40 border border-slate-800 rounded-2xl space-y-4">
-        <div className="flex items-center justify-between pb-3 border-b border-slate-850">
+      <div className="p-5 bg-white border border-slate-200 shadow-sm rounded-2xl space-y-4">
+        <div className="flex items-center justify-between pb-3 border-b border-slate-100">
           <div>
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">Overdue Ageing Table</h3>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-800">Overdue Ageing Table</h3>
             <p className="text-[10px] text-slate-500 mt-0.5">Classification of outstanding receivables by overdue duration</p>
           </div>
-          <Clock className="w-4 h-4 text-rose-400" />
+          <div className="p-2 rounded-xl bg-rose-50 text-rose-500 border border-rose-200">
+            <Clock className="w-4 h-4" />
+          </div>
         </div>
 
-        <div className="overflow-hidden border border-slate-850 bg-slate-950/30 rounded-2xl">
+        <div className="overflow-hidden border border-slate-200 bg-white rounded-2xl">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
-                <tr className="border-b border-slate-850 bg-slate-950/60 text-slate-400 font-bold uppercase tracking-wider">
+                <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[10px]">
                   <th className="px-5 py-3.5">Client Company</th>
                   <th className="px-5 py-3.5">0-30 Days Overdue</th>
                   <th className="px-5 py-3.5">30-60 Days Overdue</th>
@@ -224,23 +271,23 @@ const Reports = () => {
                   <th className="px-5 py-3.5 text-right">Total Outstanding</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-850 text-slate-300">
+              <tbody className="divide-y divide-slate-100 text-slate-800">
                 {ageingAccountsList.map((acc, idx) => (
-                  <tr key={idx} className="hover:bg-slate-950/10">
-                    <td className="px-5 py-3">
-                      <span className="font-semibold text-slate-200">{acc.name}</span>
+                  <tr key={idx} className="hover:bg-slate-50/70 transition-colors">
+                    <td className="px-5 py-3.5">
+                      <span className="font-bold text-slate-900">{acc.name}</span>
                       <p className="text-[10px] text-slate-500 mt-0.5">{acc.companyName}</p>
                     </td>
-                    <td className={`px-5 py-3 font-semibold ${acc.bracket1 > 0 ? 'text-amber-400' : 'text-slate-500'}`}>
+                    <td className={`px-5 py-3.5 font-semibold ${acc.bracket1 > 0 ? 'text-amber-600 font-bold' : 'text-slate-400'}`}>
                       {acc.bracket1 > 0 ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(acc.bracket1) : '—'}
                     </td>
-                    <td className={`px-5 py-3 font-semibold ${acc.bracket2 > 0 ? 'text-orange-400 font-bold' : 'text-slate-500'}`}>
+                    <td className={`px-5 py-3.5 font-semibold ${acc.bracket2 > 0 ? 'text-orange-600 font-bold' : 'text-slate-400'}`}>
                       {acc.bracket2 > 0 ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(acc.bracket2) : '—'}
                     </td>
-                    <td className={`px-5 py-3 font-black ${acc.bracket3 > 0 ? 'text-rose-500 font-black animate-pulse' : 'text-slate-500'}`}>
+                    <td className={`px-5 py-3.5 font-black ${acc.bracket3 > 0 ? 'text-rose-600 font-black animate-pulse' : 'text-slate-400'}`}>
                       {acc.bracket3 > 0 ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(acc.bracket3) : '—'}
                     </td>
-                    <td className="px-5 py-3 text-right font-bold text-slate-100">
+                    <td className="px-5 py-3.5 text-right font-black text-slate-900 font-mono">
                       {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(acc.totalOverdue)}
                     </td>
                   </tr>
@@ -248,8 +295,8 @@ const Reports = () => {
 
                 {ageingAccountsList.length === 0 && (
                   <tr>
-                    <td colSpan="5" className="text-center py-10 text-brand-400 bg-brand-500/5 font-semibold">
-                      Perfect. All client bills are cleared. Zero receivables are ageing.
+                    <td colSpan="5" className="text-center py-12 text-orange-600 bg-orange-50 font-bold uppercase tracking-wide">
+                      ALL COLLECTIONS ARE UP TO DATE! ZERO RECEIVABLES ARE AGEING.
                     </td>
                   </tr>
                 )}

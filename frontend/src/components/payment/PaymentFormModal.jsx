@@ -102,15 +102,15 @@ const PaymentFormModal = ({ isOpen, onClose, preselectedClientId }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-      <div className="relative w-full max-w-xl overflow-hidden border border-slate-800 bg-slate-900 rounded-2xl shadow-2xl animate-[scaleUp_0.3s_ease-out]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/40 backdrop-blur-sm">
+      <div className="relative w-full max-w-xl overflow-hidden border border-slate-200 bg-white rounded-2xl shadow-2xl animate-[scaleUp_0.3s_ease-out]">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800 bg-slate-950/20">
-          <h3 className="text-base font-bold text-slate-100">Set Instalment Schedule</h3>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/80">
+          <h3 className="text-base font-bold text-slate-900">Set Instalment Schedule</h3>
           <button 
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -121,12 +121,12 @@ const PaymentFormModal = ({ isOpen, onClose, preselectedClientId }) => {
           
           {/* Client Select */}
           <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
-              Select Client <span className="text-red-400">*</span>
+            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+              Select Client <span className="text-red-500">*</span>
             </label>
             <select
               required
-              className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 text-sm outline-none transition-all"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 rounded-xl text-slate-900 text-xs outline-none transition-all cursor-pointer"
               value={clientId}
               onChange={e => handleClientChange(e.target.value)}
             >
@@ -139,13 +139,13 @@ const PaymentFormModal = ({ isOpen, onClose, preselectedClientId }) => {
 
           {/* Quotation Select */}
           <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide mb-1.5">
-              Linked Quotation (Accepted Only) <span className="text-red-400">*</span>
+            <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide mb-1.5">
+              Linked Quotation (Accepted Only) <span className="text-red-500">*</span>
             </label>
             <select
               required
               disabled={!clientId}
-              className="w-full px-4 py-2.5 bg-slate-950 border border-slate-800 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 rounded-xl text-slate-100 text-sm outline-none transition-all disabled:opacity-50"
+              className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 focus:bg-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 rounded-xl text-slate-900 text-xs outline-none transition-all disabled:opacity-50 cursor-pointer"
               value={quoteId}
               onChange={e => handleQuoteChange(e.target.value)}
             >
@@ -158,9 +158,9 @@ const PaymentFormModal = ({ isOpen, onClose, preselectedClientId }) => {
 
           {/* Quotation Total Indicator */}
           {totalAmount > 0 && (
-            <div className="p-3 bg-slate-950/40 border border-slate-850 rounded-xl flex justify-between text-xs">
-              <span className="text-slate-400 font-semibold">Quotation Total Amount:</span>
-              <span className="font-bold text-brand-400">
+            <div className="p-3 bg-orange-50/70 border border-orange-200 rounded-xl flex justify-between text-xs">
+              <span className="text-slate-700 font-semibold">Quotation Total Amount:</span>
+              <span className="font-black text-orange-600">
                 {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(totalAmount)}
               </span>
             </div>
@@ -170,13 +170,13 @@ const PaymentFormModal = ({ isOpen, onClose, preselectedClientId }) => {
           {quoteId && (
             <div>
               <div className="flex items-center justify-between mb-2">
-                <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wide">
                   Configure Instalment Splits
                 </label>
                 <button
                   type="button"
                   onClick={handleAddInstalment}
-                  className="flex items-center gap-1 text-[11px] font-bold text-brand-400 hover:text-brand-300"
+                  className="flex items-center gap-1 text-[11px] font-bold text-orange-600 hover:text-orange-700 cursor-pointer"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Split Instalment</span>
@@ -185,16 +185,16 @@ const PaymentFormModal = ({ isOpen, onClose, preselectedClientId }) => {
 
               <div className="space-y-3">
                 {instalments.map((inst, index) => (
-                  <div key={index} className="flex gap-3 items-center p-3 bg-slate-950/30 border border-slate-800/80 rounded-2xl">
-                    <span className="text-xs font-bold text-slate-400 min-w-[50px]">#{index+1}</span>
+                  <div key={index} className="flex gap-3 items-center p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+                    <span className="text-xs font-bold text-slate-500 min-w-[50px]">Part #{index+1}</span>
                     
                     {/* Amount */}
                     <div className="flex-1 flex items-center gap-1.5">
-                      <span className="text-xs text-slate-500">₹</span>
+                      <span className="text-xs text-slate-500 font-bold">₹</span>
                       <input
                         type="number"
                         required
-                        className="w-full px-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-lg text-slate-200 outline-none focus:border-brand-500"
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900 outline-none focus:border-orange-500"
                         placeholder="Amount"
                         value={inst.amount}
                         onChange={e => handleInstalmentChange(index, 'amount', e.target.value)}
@@ -206,7 +206,7 @@ const PaymentFormModal = ({ isOpen, onClose, preselectedClientId }) => {
                       <input
                         type="date"
                         required
-                        className="w-full px-3 py-1.5 text-xs bg-slate-950 border border-slate-800 rounded-lg text-slate-200 outline-none focus:border-brand-500"
+                        className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 rounded-lg text-slate-900 outline-none focus:border-orange-500"
                         value={inst.dueDate}
                         onChange={e => handleInstalmentChange(index, 'dueDate', e.target.value)}
                       />
@@ -217,7 +217,7 @@ const PaymentFormModal = ({ isOpen, onClose, preselectedClientId }) => {
                       <button
                         type="button"
                         onClick={() => handleRemoveInstalment(index)}
-                        className="p-1.5 text-slate-500 hover:text-red-400 border border-slate-850 hover:border-slate-800 rounded-lg bg-slate-950"
+                        className="p-2 text-slate-400 hover:text-red-500 border border-slate-200 hover:border-red-200 rounded-lg bg-white transition-colors cursor-pointer"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -229,18 +229,18 @@ const PaymentFormModal = ({ isOpen, onClose, preselectedClientId }) => {
           )}
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-800 bg-slate-950/10">
+          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-semibold text-slate-400 hover:text-slate-200"
+              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
             >
               Cancel
             </button>
             <button
               type="submit"
               disabled={!quoteId}
-              className="px-5 py-2 text-sm font-semibold text-slate-950 bg-gradient-to-r from-brand-400 to-emerald-500 hover:from-brand-500 hover:to-emerald-600 rounded-xl hover-scale shadow-md shadow-brand-500/10 disabled:opacity-50"
+              className="px-5 py-2 text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale shadow-xs disabled:opacity-50 cursor-pointer"
             >
               Save Schedule
             </button>

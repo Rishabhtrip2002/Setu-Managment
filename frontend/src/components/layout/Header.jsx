@@ -1,9 +1,13 @@
 import React from 'react';
 import { useCRM } from '../../context/CRMContext';
-import { Menu, Plus, ShieldCheck, UserCheck, KeyRound } from 'lucide-react';
+import { Menu, Plus, ShieldCheck, BellRing, CalendarClock, LogOut } from 'lucide-react';
 
-const Header = ({ activePage, setSidebarOpen, onQuickAction }) => {
-  const { currentUser, setCurrentUser } = useCRM();
+const Header = ({ activePage, setSidebarOpen, onQuickAction, onOpenFollowUpAlert, onOpenFollowUpModal }) => {
+  const { currentUser, followUps, getTodayDateString, cloudSyncStatus, logout } = useCRM();
+
+  const today = getTodayDateString();
+  const dueTodayTasks = followUps.filter(f => f.status === 'Pending' && f.dueDate <= today);
+  const dueCount = dueTodayTasks.length;
 
   const getPageTitle = () => {
     switch (activePage) {
@@ -12,48 +16,100 @@ const Header = ({ activePage, setSidebarOpen, onQuickAction }) => {
       case 'clients': return 'Unified Clients';
       case 'quotations': return 'Quotation Builder';
       case 'payments': return 'Payment Tracking';
+      case 'expenses': return 'Expense Tracker';
+      case 'employees': return 'Employee Management';
       case 'reports': return 'Reports & Analytics';
       case 'settings': return 'WhatsApp Config & Templates';
       default: return 'CRM Solutions';
     }
   };
 
-  const handleToggleRole = () => {
-    const nextRole = currentUser.role === 'Admin' ? 'Staff' : 'Admin';
-    const nextName = nextRole === 'Admin' ? 'Siddharth Shah' : 'Sneha Patel';
-    setCurrentUser({ name: nextName, role: nextRole });
-  };
-
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-6 border-b border-slate-800 bg-slate-900/80 backdrop-blur-md">
+    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 sm:px-6 border-b border-slate-200 bg-white/90 backdrop-blur-md shadow-xs">
       {/* Left side: Hamburger (mobile) & Title */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <button
           onClick={() => setSidebarOpen(true)}
-          className="p-1 rounded-lg lg:hidden hover:bg-slate-800 text-slate-400 hover:text-slate-200"
+          className="p-1.5 rounded-lg lg:hidden hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors"
+          title="Open Menu"
         >
-          <Menu className="w-6 h-6" />
+          <Menu className="w-5 h-5" />
         </button>
-        <h1 className="text-xl font-bold tracking-tight text-slate-100 font-sans">
-          {getPageTitle()}
-        </h1>
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 font-sans truncate">
+            {getPageTitle()}
+          </h1>
+          <div 
+            className={`hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-semibold tracking-wide border ${
+              cloudSyncStatus === 'connected'
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-200/80'
+                : cloudSyncStatus === 'offline'
+                ? 'bg-rose-50 text-rose-700 border-rose-200/80'
+                : 'bg-amber-50 text-amber-700 border-amber-200/80'
+            }`}
+            title={
+              cloudSyncStatus === 'connected'
+                ? 'Connected to Firebase Firestore Database in Real-Time'
+                : cloudSyncStatus === 'offline'
+                ? 'Running offline with local storage fallback'
+                : 'Connecting to Cloud Firestore...'
+            }
+          >
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              cloudSyncStatus === 'connected' 
+                ? 'bg-emerald-500 animate-pulse' 
+                : cloudSyncStatus === 'offline'
+                ? 'bg-rose-500'
+                : 'bg-amber-500 animate-ping'
+            }`} />
+            <span>{cloudSyncStatus === 'connected' ? 'Firestore Live' : cloudSyncStatus === 'offline' ? 'Offline' : 'Connecting'}</span>
+          </div>
+        </div>
       </div>
 
-      {/* Right side: Actions, Role Selector & Toggle */}
-      <div className="flex items-center gap-4">
+      {/* Right side: Actions, Role Selector & Follow-up Bell */}
+      <div className="flex items-center gap-2 sm:gap-3">
+        {/* Follow-up Reminder Bell Icon */}
+        <button
+          onClick={() => onOpenFollowUpModal ? onOpenFollowUpModal() : (onOpenFollowUpAlert && onOpenFollowUpAlert())}
+          className={`relative p-2 rounded-xl border transition-all ${
+            dueCount > 0 
+              ? 'bg-orange-50 text-orange-600 border-orange-200 hover:bg-orange-100/80 shadow-xs' 
+              : 'bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100'
+          }`}
+          title={`${dueCount} Follow-ups due today. Click to schedule or view.`}
+        >
+          <BellRing className={`w-4 h-4 ${dueCount > 0 ? 'text-orange-600 animate-wiggle' : ''}`} />
+          {dueCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-orange-500 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-white">
+              {dueCount}
+            </span>
+          )}
+        </button>
+
+        {/* Quick Follow-up schedule button (sm+ screens) */}
+        <button
+          onClick={() => onOpenFollowUpModal && onOpenFollowUpModal()}
+          className="hidden md:flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 rounded-xl transition-all hover-scale"
+          title="Schedule Follow-up"
+        >
+          <CalendarClock className="w-3.5 h-3.5 text-orange-500" />
+          <span>Follow-up</span>
+        </button>
+
         {/* Quick action buttons */}
         {activePage !== 'reports' && activePage !== 'settings' && (
           <div className="hidden sm:flex items-center gap-2">
             <button
               onClick={() => onQuickAction('add_lead')}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-slate-300 hover:text-slate-100 bg-slate-800 hover:bg-slate-700/80 border border-slate-700/50 rounded-xl transition-all hover-scale"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 hover:text-slate-900 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 rounded-xl transition-all hover-scale"
             >
-              <Plus className="w-3.5 h-3.5" />
+              <Plus className="w-3.5 h-3.5 text-slate-600" />
               <span>New Lead</span>
             </button>
             <button
               onClick={() => onQuickAction('add_quote')}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-brand-950 bg-gradient-to-r from-brand-400 to-emerald-500 hover:from-brand-500 hover:to-emerald-600 rounded-xl transition-all hover-scale shadow-md shadow-brand-500/10"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-semibold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl transition-all hover-scale shadow-md shadow-orange-500/20"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>Create Quote</span>
@@ -61,29 +117,23 @@ const Header = ({ activePage, setSidebarOpen, onQuickAction }) => {
           </div>
         )}
 
-        {/* Live Role Switcher (Admin/Staff demo trigger) */}
+        {/* Authenticated Super Admin Badge */}
+        <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border bg-orange-50/80 border-orange-200/90 text-orange-700 shadow-xs text-xs font-semibold">
+          <ShieldCheck className="w-4 h-4 text-orange-600 shrink-0" />
+          <span className="hidden lg:inline truncate max-w-[140px]">{currentUser?.name || 'User'}</span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-500 text-white font-bold uppercase tracking-wider">
+            {currentUser?.role || 'Staff'}
+          </span>
+        </div>
+
+        {/* Sign Out Button */}
         <button
-          onClick={handleToggleRole}
-          className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all text-xs font-semibold ${
-            currentUser.role === 'Admin'
-              ? 'bg-brand-500/10 hover:bg-brand-500/20 border-brand-500/30 text-brand-400'
-              : 'bg-indigo-500/10 hover:bg-indigo-500/20 border-indigo-500/30 text-indigo-400'
-          }`}
-          title="Click to toggle user role for access testing"
+          onClick={logout}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-slate-600 transition-all text-xs font-semibold shadow-xs"
+          title="Sign Out from Super Admin"
         >
-          {currentUser.role === 'Admin' ? (
-            <>
-              <ShieldCheck className="w-4 h-4" />
-              <span className="hidden md:inline">Role: Admin (Full)</span>
-              <span className="md:hidden">Admin</span>
-            </>
-          ) : (
-            <>
-              <KeyRound className="w-4 h-4" />
-              <span className="hidden md:inline">Role: Staff (Restricted)</span>
-              <span className="md:hidden">Staff</span>
-            </>
-          )}
+          <LogOut className="w-3.5 h-3.5 text-slate-500 hover:text-rose-600" />
+          <span className="hidden sm:inline">Logout</span>
         </button>
       </div>
     </header>
