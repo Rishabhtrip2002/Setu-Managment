@@ -54,8 +54,7 @@ service cloud.firestore {
     }
 
     match /employees/{employeeId} {
-      allow read: if true;
-      allow write: if isAuthenticated() || (request.resource.data.status == 'Active');
+      allow read, write: if true;
     }
 
     // Fallback rule for development (set to true only for temporary testing if auth is not yet enforced)

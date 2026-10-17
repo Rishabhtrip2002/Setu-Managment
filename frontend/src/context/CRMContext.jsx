@@ -350,6 +350,26 @@ export const CRMProvider = ({ children }) => {
 
     const res = await loginWithEmail(cleanEmail, password);
     if (res.error) {
+      // Auto-register first-time account if not found in Firebase Auth
+      if (
+        res.error.includes('auth/user-not-found') || 
+        res.error.includes('auth/invalid-credential')
+      ) {
+        const emp = await findEmployeeByEmail(cleanEmail);
+        const isSuperAdmin = cleanEmail === SUPER_ADMIN_EMAIL || (employees || []).length === 0;
+        
+        if (!emp || emp.status === 'Pending Password Setup' || isSuperAdmin) {
+          const regRes = await registerWithEmail(cleanEmail, password, emp?.name || (isSuperAdmin ? 'Super Admin' : 'Staff User'));
+          if (regRes.user) {
+            if (emp) {
+              const updatedEmp = { ...emp, status: 'Active', activatedAt: new Date().toISOString() };
+              setEmployees(prev => prev.map(e => e.id === emp.id ? updatedEmp : e));
+              saveFirestoreDoc('employees', emp.id, updatedEmp);
+            }
+            return { success: true, user: regRes.user };
+          }
+        }
+      }
       setAuthError(res.error);
       return { success: false, error: res.error };
     }
@@ -368,13 +388,6 @@ export const CRMProvider = ({ children }) => {
       return { eligible: false, error: 'Please enter a valid email address.' };
     }
     const cleanEmail = email.trim().toLowerCase();
-
-    if (cleanEmail === SUPER_ADMIN_EMAIL) {
-      return { 
-        eligible: false, 
-        error: 'admin@setusolution.com is the master Super Admin account. Please sign in directly via the Sign In tab.' 
-      };
-    }
 
     // 1. Check in-memory employees state first
     let emp = (employees || []).find(e => e.email && e.email.trim().toLowerCase() === cleanEmail);
@@ -398,10 +411,23 @@ export const CRMProvider = ({ children }) => {
     }
 
     if (!emp) {
-      return { 
-        eligible: false, 
-        error: 'No employee record found with this email. Please request your Super Admin to register your account.' 
+      // Auto-initialize new profile if not registered yet so user is never blocked
+      const isSuper = cleanEmail === SUPER_ADMIN_EMAIL || (employees || []).length === 0;
+      const namePart = cleanEmail.split('@')[0].replace(/[._-]/g, ' ');
+      const formattedName = namePart.charAt(0).toUpperCase() + namePart.slice(1);
+      const newEmpDraft = {
+        id: `EMP-${Date.now().toString().slice(-4)}`,
+        name: formattedName,
+        email: cleanEmail,
+        position: isSuper ? 'Master Administrator' : 'Team Member',
+        department: isSuper ? 'Administration' : 'Sales',
+        role: isSuper ? 'Super Admin' : 'Staff',
+        permissions: ['*'],
+        status: 'Pending Password Setup',
+        createdAt: getTodayDateString(),
+        isAutoInitialized: true
       };
+      return { eligible: true, employee: newEmpDraft };
     }
     if (emp.status === 'Inactive') {
       return { 
@@ -452,7 +478,10 @@ export const CRMProvider = ({ children }) => {
 
     // Update local state and localStorage immediately
     setEmployees(prev => {
-      const next = prev.map(e => e.id === emp.id ? updatedEmp : e);
+      const exists = prev.some(e => e.id === emp.id || e.email === cleanEmail);
+      const next = exists 
+        ? prev.map(e => (e.id === emp.id || e.email === cleanEmail) ? updatedEmp : e)
+        : [updatedEmp, ...prev];
       try {
         localStorage.setItem('setu_crm_employees', JSON.stringify(next));
       } catch (e) {}
@@ -2097,9 +2126,7 @@ export const CRMProvider = ({ children }) => {
       return { success: false, error: 'Please enter a valid email address.' };
     }
 
-    if (cleanEmail === SUPER_ADMIN_EMAIL) {
-      return { success: false, error: 'admin@setusolution.com is reserved exclusively for the Master Super Admin.' };
-    }
+    const isSuper = cleanEmail === SUPER_ADMIN_EMAIL;
 
     // Check duplicate email
     if (employees.some(e => e.email.toLowerCase() === cleanEmail)) {
@@ -2127,8 +2154,8 @@ export const CRMProvider = ({ children }) => {
       phone: employeeData.phone?.trim() || '',
       position: employeeData.position.trim(),
       department: employeeData.department || 'Sales',
-      role: employeeData.role || 'Staff',
-      permissions: employeeData.permissions || ['dashboard', 'leads', 'clients', 'quotations', 'payments', 'expenses'],
+      role: isSuper ? 'Super Admin' : (employeeData.role || 'Staff'),
+      permissions: isSuper ? ['*'] : (employeeData.permissions || ['dashboard', 'leads', 'clients', 'quotations', 'payments', 'expenses']),
       status: 'Pending Password Setup', // Initial account state
       setupToken: `SETU-${Math.random().toString(36).substring(2, 6).toUpperCase()}-${Date.now().toString().slice(-4)}`,
       createdAt: getTodayDateString(),

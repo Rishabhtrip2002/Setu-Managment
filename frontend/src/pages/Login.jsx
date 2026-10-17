@@ -26,7 +26,7 @@ const Login = () => {
   const [mode, setMode] = useState('signin');
 
   // Sign In States
-  const [email, setEmail] = useState(() => localStorage.getItem('setu_saved_admin_email') || '');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -57,7 +57,6 @@ const Login = () => {
 
     setLoading(true);
     try {
-      localStorage.setItem('setu_saved_admin_email', email.trim());
       const res = await login(email.trim(), password);
       if (!res.success) {
         let msg = res.error || 'Authentication failed. Please verify credentials.';
@@ -241,20 +240,9 @@ const Login = () => {
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               {/* Email Input */}
               <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-300">
-                    Email Address
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setEmail('admin@setusolution.com')}
-                    className="text-[11px] text-orange-400 hover:text-orange-300 font-bold transition-colors cursor-pointer flex items-center gap-1"
-                    title="Click to fill Super Admin email"
-                  >
-                    <span>Super Admin:</span>
-                    <span className="underline">admin@setusolution.com</span>
-                  </button>
-                </div>
+                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  Email Address
+                </label>
                 <div className="relative">
                   <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                     <Mail className="w-4 h-4" />
@@ -264,7 +252,7 @@ const Login = () => {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="admin@setusolution.com or employee email"
+                    placeholder="Enter your registered email address"
                     className="w-full pl-10 pr-4 py-2.5 bg-slate-950/70 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
                   />
                 </div>
