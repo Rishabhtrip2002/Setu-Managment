@@ -23,6 +23,9 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
     { description: 'Employee Tracking Android Application', breakdown: '100 ( per user for month )', qty: 1, rate: 0 }
   ]);
   const [advancePaid, setAdvancePaid] = useState(14000);
+  const [renewalPrice, setRenewalPrice] = useState(10000);
+  const [renewalTrackingPrice, setRenewalTrackingPrice] = useState(100);
+  const [discountPrice, setDiscountPrice] = useState('');
   const [status, setStatus] = useState('Draft');
   const [notes, setNotes] = useState('');
 
@@ -38,6 +41,9 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
       setSelectedEntity({ id: quotationToEdit.clientOrLeadId, type: quotationToEdit.type });
       setItems(quotationToEdit.items || [{ description: '', breakdown: '', qty: 1, rate: 0 }]);
       setAdvancePaid(quotationToEdit.advancePaid !== undefined ? quotationToEdit.advancePaid : 0);
+      setRenewalPrice(quotationToEdit.renewalPrice !== undefined ? quotationToEdit.renewalPrice : 10000);
+      setRenewalTrackingPrice(quotationToEdit.renewalTrackingPrice !== undefined ? quotationToEdit.renewalTrackingPrice : 100);
+      setDiscountPrice(quotationToEdit.discountPrice ? String(quotationToEdit.discountPrice) : '');
       setStatus(quotationToEdit.status || 'Draft');
       setNotes(quotationToEdit.notes || '');
     } else {
@@ -45,6 +51,9 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
       setDate(initialDate);
       setDocType(defaultDocType);
       setDocId(generateDocumentNumber(initialDate, false));
+      setRenewalPrice(10000);
+      setRenewalTrackingPrice(100);
+      setDiscountPrice('');
       
       const targetId = clientOrLeadId || '';
       const targetType = type || 'client';
@@ -128,7 +137,9 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
 
   // Calculations
   const calculatedTotal = items.reduce((sum, item) => sum + (item.rate > 0 ? (item.qty * item.rate) : 0), 0) || 30000;
-  const remainingAmount = Math.max(0, calculatedTotal - Number(advancePaid));
+  const numDiscount = discountPrice && !isNaN(Number(discountPrice)) ? Number(discountPrice) : null;
+  const effectiveTotal = numDiscount !== null ? numDiscount : calculatedTotal;
+  const remainingAmount = Math.max(0, effectiveTotal - Number(advancePaid));
 
   const handleSubmit = (e) => {
     e.preventDefault();
@@ -177,9 +188,13 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
       email: entityEmail,
       date,
       items,
-      total: calculatedTotal,
+      total: effectiveTotal,
+      originalTotal: calculatedTotal,
+      discountPrice: numDiscount,
+      renewalPrice: Number(renewalPrice) >= 0 ? Number(renewalPrice) : 10000,
+      renewalTrackingPrice: Number(renewalTrackingPrice) >= 0 ? Number(renewalTrackingPrice) : 0,
       advancePaid: docType === 'Invoice' ? Number(advancePaid) : 0,
-      remaining: docType === 'Invoice' ? remainingAmount : calculatedTotal,
+      remaining: docType === 'Invoice' ? remainingAmount : effectiveTotal,
       useGST: false,
       taxRate: 0,
       notes,
@@ -476,11 +491,100 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
             </div>
           )}
 
+          {/* Renewal & Maintenance Configuration */}
+          <div className="p-4 bg-orange-50/50 border border-orange-200/80 rounded-2xl space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-xs font-bold text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
+                <RotateCw className="w-3.5 h-3.5 text-orange-600" />
+                <span>Renewal & Maintenance Terms (Post-1st Year)</span>
+              </h4>
+              <span className="text-[10px] text-orange-700 bg-orange-100/70 font-semibold px-2 py-0.5 rounded-full border border-orange-200">
+                Printed on Bill / Quotation
+              </span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Standard Annual Maintenance & Renewal (₹/year) <span className="text-red-500">*</span>
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <span className="text-xs font-bold">₹</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    required
+                    className="w-full pl-7 pr-3 py-2 text-xs bg-white border border-slate-200 focus:bg-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 rounded-xl outline-none text-slate-900 font-bold"
+                    placeholder="e.g. 10000"
+                    value={renewalPrice}
+                    onChange={e => setRenewalPrice(e.target.value)}
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Includes domain renewal, hosting renewal, and ongoing maintenance.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Post-1st Year Tracking (₹/user/month)
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <span className="text-xs font-bold">₹</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    className="w-full pl-7 pr-3 py-2 text-xs bg-white border border-slate-200 focus:bg-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 rounded-xl outline-none text-slate-900 font-medium"
+                    placeholder="e.g. 100 (or 0 if none)"
+                    value={renewalTrackingPrice}
+                    onChange={e => setRenewalTrackingPrice(e.target.value)}
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Optional. Leave 0 to omit user tracking fee from terms.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Optional Discounted Price */}
+          <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-700">
+                Discounted Final Price (Optional)
+              </label>
+              <p className="text-[10px] text-slate-500">
+                Shows strike-through original total (e.g. ~~₹45,000~~ ₹42,000) on quotation letterhead.
+              </p>
+            </div>
+            <div className="w-full sm:w-44">
+              <input
+                type="number"
+                min="0"
+                placeholder="e.g. 42000"
+                className="w-full px-3 py-1.5 text-xs bg-white border border-slate-200 focus:border-orange-500 focus:ring-1 focus:ring-orange-500 rounded-xl outline-none text-slate-900 font-bold"
+                value={discountPrice}
+                onChange={e => setDiscountPrice(e.target.value)}
+              />
+            </div>
+          </div>
+
           {/* Pricing summary */}
           <div className="p-4 bg-orange-50/60 border border-orange-200 rounded-2xl flex items-center justify-between">
-            <span className="text-xs font-bold uppercase text-slate-700">Total Project Price:</span>
+            <div>
+              <span className="text-xs font-bold uppercase text-slate-700 block">Total Project Price:</span>
+              {numDiscount !== null && numDiscount < calculatedTotal && (
+                <span className="text-[11px] text-slate-400 line-through font-mono">
+                  {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(calculatedTotal)}
+                </span>
+              )}
+            </div>
             <span className="text-base font-black text-orange-600 font-mono">
-              {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(calculatedTotal)}
+              {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(effectiveTotal)}
             </span>
           </div>
 

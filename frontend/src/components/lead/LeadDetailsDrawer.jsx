@@ -16,10 +16,8 @@ import {
   FilePlus, 
   MapPin, 
   Eye, 
-  Copy, 
   Check, 
   Receipt,
-  Code,
   CalendarClock,
   RotateCw,
   Trash2,
@@ -52,11 +50,10 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
     employees
   } = useCRM();
 
-  const [activeTab, setActiveTab] = useState('calls'); // calls, quotes, followups, info, json, payments, whatsapp
+  const [activeTab, setActiveTab] = useState('calls'); // calls, quotes, followups, info, payments, whatsapp
   const [chatMessage, setChatMessage] = useState('');
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [selectedPdfDoc, setSelectedPdfDoc] = useState(null);
-  const [copiedJSON, setCopiedJSON] = useState(false);
   
   // Follow-up modal states
   const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
@@ -96,12 +93,6 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
     setPdfModalOpen(true);
   };
 
-  const handleCopyLeadJSON = () => {
-    if (!leadQuotationData) return;
-    navigator.clipboard.writeText(JSON.stringify(leadQuotationData, null, 2));
-    setCopiedJSON(true);
-    setTimeout(() => setCopiedJSON(false), 2000);
-  };
 
   const handleSendChat = (e) => {
     e.preventDefault();
@@ -202,7 +193,6 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
             { id: 'quotes', label: 'Quotation / Bill', icon: FileText },
             { id: 'followups', label: 'Follow-ups', icon: CalendarClock, badge: pendingFollowUps.length > 0 ? pendingFollowUps.length : null },
             { id: 'info', label: 'Lead Info', icon: UserCheck },
-            { id: 'json', label: 'Quotation JSON', icon: Code },
             { id: 'payments', label: 'Payments', icon: IndianRupee },
             { id: 'whatsapp', label: 'WhatsApp', icon: MessageSquare }
           ].map(tab => {
@@ -637,13 +627,6 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
                       <Eye className="w-3.5 h-3.5" />
                       <span>View & Print PDF (SETU Format)</span>
                     </button>
-                    <button
-                      onClick={() => setActiveTab('json')}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200/80 rounded-xl border border-slate-200"
-                    >
-                      <Code className="w-3.5 h-3.5" />
-                      <span>View JSON</span>
-                    </button>
                   </div>
                 </div>
               )}
@@ -701,41 +684,6 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
             </div>
           )}
 
-          {/* ======================================================== */}
-          {/* Tab: Quotation JSON Viewer                               */}
-          {/* ======================================================== */}
-          {activeTab === 'json' && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                  Quotation JSON Stored in Lead Object
-                </h4>
-                {leadQuotationData && (
-                  <button
-                    onClick={handleCopyLeadJSON}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200/80 border border-slate-200 rounded-xl transition-all"
-                  >
-                    {copiedJSON ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                    <span>{copiedJSON ? 'Copied' : 'Copy JSON'}</span>
-                  </button>
-                )}
-              </div>
-
-              {leadQuotationData ? (
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 overflow-x-auto shadow-2xs">
-                  <pre className="text-xs font-mono text-slate-800 leading-relaxed">
-                    {JSON.stringify(leadQuotationData, null, 2)}
-                  </pre>
-                </div>
-              ) : (
-                <div className="py-12 border border-dashed border-slate-200 rounded-2xl flex flex-col items-center text-slate-400 bg-slate-50/50">
-                  <Code className="w-8 h-8 mb-2 text-slate-300" />
-                  <p className="text-sm font-semibold text-slate-700">No quotation JSON saved inside this lead yet</p>
-                  <p className="text-xs text-slate-500 mt-1">Create a quotation or invoice to attach the JSON to this lead record.</p>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* ======================================================== */}
           {/* Tab: Info                                                */}
