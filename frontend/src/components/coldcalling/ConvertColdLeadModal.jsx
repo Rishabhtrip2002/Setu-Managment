@@ -34,7 +34,7 @@ const ConvertColdLeadModal = ({ isOpen, onClose, coldLead, onSuccess }) => {
     email: '',
     address: '',
     notes: '',
-    source: 'Cold Calling',
+    source: 'Cold Call',
     assignedTo: '',
     assignedToId: '',
     status: 'Contacted',

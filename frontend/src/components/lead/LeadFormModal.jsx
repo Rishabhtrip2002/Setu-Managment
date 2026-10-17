@@ -19,7 +19,7 @@ const LeadFormModal = ({ isOpen, onClose, leadToEdit }) => {
     company: '',
     email: '',
     address: '',
-    source: 'Website',
+    source: 'Direct Lead',
     notes: '',
     assignedTo: currentUser?.name || 'Staff',
     assignedToId: currentUser?.employeeId || '',
@@ -152,7 +152,7 @@ const LeadFormModal = ({ isOpen, onClose, leadToEdit }) => {
     }
   };
 
-  const sources = ['Website', 'Referral', 'Social Media', 'Cold Email', 'Inbound Call', 'Other'];
+  const sources = ['Direct Lead', 'Cold Call', 'Website', 'Referral', 'Social Media', 'Cold Email', 'Inbound Call', 'Other'];
   const statuses = ['New', 'Contacted', 'Quoted', 'Negotiation', 'Won', 'Lost'];
   const activeStaffNames = (employees || []).filter(e => e.status === 'Active').map(e => e.name);
   const teamMembers = Array.from(new Set([

@@ -826,6 +826,7 @@ export const CRMProvider = ({ children }) => {
   const updateLeadStatus = (leadId, newStatus) => {
     setLeads(prev => prev.map(lead => {
       if (lead.id === leadId) {
+        if (lead.status === newStatus) return lead;
         const updatedLead = { ...lead, status: newStatus };
         saveFirestoreDoc('leads', leadId, updatedLead);
         
@@ -887,11 +888,21 @@ export const CRMProvider = ({ children }) => {
     const existingLogs = Array.isArray(targetLead.callLogs) ? targetLead.callLogs : [];
     const updatedCallLogs = [callEntry, ...existingLogs];
 
-    // CANONICAL RULE: Keep call outcomes separate from Lead stages!
-    // The Lead pipeline status remains targetLead.status unless the caller explicitly requested a stage change in callData.newStage.
+    // Auto-compute stage from call outcome unless caller explicitly set newStage
     let nextStage = targetLead.status;
     if (callData.newStage && ['New', 'Contacted', 'Quoted', 'Negotiation', 'Won', 'Lost'].includes(callData.newStage)) {
       nextStage = callData.newStage;
+    } else {
+      const outcome = (callData.outcome || '').toLowerCase();
+      if (outcome.includes('not interested') || outcome === 'do not call') {
+        nextStage = 'Lost';
+      } else if (outcome.includes('negotiat')) {
+        nextStage = 'Negotiation';
+      } else if (outcome.includes('won') || outcome.includes('deal closed') || outcome.includes('converted')) {
+        nextStage = 'Won';
+      } else if (targetLead.status === 'New' && (outcome.includes('connected') || outcome.includes('interested') || outcome.includes('callback') || outcome.includes('follow'))) {
+        nextStage = 'Contacted';
+      }
     }
 
     // DNC support on leads
@@ -1375,7 +1386,7 @@ export const CRMProvider = ({ children }) => {
       email: (leadOverrides.email || target.email || '').trim(),
       address: (leadOverrides.address || target.address || '').trim(),
       company: (leadOverrides.company || target.company || '').trim(),
-      source: (leadOverrides.source || target.source || 'Cold Calling').trim(),
+      source: (leadOverrides.source || 'Cold Call').trim(),
       notes: (leadOverrides.notes || target.notes || `Promoted from Cold Calling (${target.id})`).trim(),
       assignedTo: leadOverrides.assignedTo || target.assignedToName || currentUser?.name || 'Staff',
       assignedToId: leadOverrides.assignedToId || target.assignedToId || currentUser?.employeeId || '',
@@ -1655,6 +1666,10 @@ export const CRMProvider = ({ children }) => {
     // Save quotation directly inside Lead in JSON format if linked to lead
     if (newQuote.type === 'lead' || newQuote.clientOrLeadId?.startsWith('L-')) {
       saveLeadQuotationJSON(newQuote.clientOrLeadId, newQuote);
+      const linkedLead = leads.find(l => l.id === newQuote.clientOrLeadId);
+      if (linkedLead && (linkedLead.status === 'New' || linkedLead.status === 'Contacted')) {
+        updateLeadStatus(newQuote.clientOrLeadId, 'Quoted');
+      }
     }
 
     // Trigger WhatsApp notification if sent
