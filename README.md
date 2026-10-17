@@ -56,9 +56,16 @@ App will run at `http://localhost:5173`.
 ### Production Build
 
 ```bash
-cd frontend
 npm run build
 ```
+
+### Cloudflare Pages Deployment
+- **Framework Preset**: `Vite`
+- **Root Directory**: `frontend`
+- **Build Command**: `npm run build`
+- **Build Output Directory**: `dist`
+- **Client-Side SPA Routing**: Handled via `frontend/public/_redirects`
+
 
 ---
 
