@@ -19,14 +19,14 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
 
   // Calculations & Pricing
   const totalAmount = Number(quotation.total) || (quotation.items ? quotation.items.reduce((s, i) => s + (Number(i.rate) * Number(i.qty || 1)), 0) : 0);
-  const originalTotal = quotation.originalTotal || (quotation.items ? quotation.items.reduce((s, i) => s + (Number(i.rate) * Number(i.qty || 1)), 0) : totalAmount);
+  const originalTotal = Number(quotation.originalTotal) || totalAmount;
   const hasDiscount = Boolean(quotation.discountPrice && Number(quotation.discountPrice) < originalTotal);
   
   const advancePaid = quotation.advancePaid !== undefined ? Number(quotation.advancePaid) : 0;
   const remaining = quotation.remaining !== undefined ? Number(quotation.remaining) : (totalAmount - advancePaid);
 
-  const renewalPrice = quotation.renewalPrice !== undefined ? quotation.renewalPrice : 10000;
-  const renewalTrackingPrice = quotation.renewalTrackingPrice !== undefined ? quotation.renewalTrackingPrice : 100;
+  const renewalPrice = Number(quotation.renewalPrice !== undefined ? quotation.renewalPrice : 10000) || 0;
+  const renewalTrackingPrice = Number(quotation.renewalTrackingPrice !== undefined ? quotation.renewalTrackingPrice : 100) || 0;
 
   const formatINR = (val) => {
     return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(val) || 0);
@@ -38,10 +38,14 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
 
     const logoOriginUrl = `${window.location.origin}/SETULOGO.png`;
     let printHtml = printArea.innerHTML;
-    // Ensure relative /SETULOGO.png becomes full absolute origin URL in print window
     printHtml = printHtml.replaceAll('src="/SETULOGO.png"', `src="${logoOriginUrl}"`);
+    printHtml = printHtml.replaceAll('src="/src/assets/SETULOGO.png"', `src="${logoOriginUrl}"`);
 
     const printWindow = window.open('', '_blank', 'width=920,height=1050');
+    if (!printWindow) {
+      alert('Popup blocked! Please allow popups for this site to print.');
+      return;
+    }
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>

@@ -43,7 +43,7 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
       setAdvancePaid(quotationToEdit.advancePaid !== undefined ? quotationToEdit.advancePaid : 0);
       setRenewalPrice(quotationToEdit.renewalPrice !== undefined ? quotationToEdit.renewalPrice : 10000);
       setRenewalTrackingPrice(quotationToEdit.renewalTrackingPrice !== undefined ? quotationToEdit.renewalTrackingPrice : 100);
-      setDiscountPrice(quotationToEdit.discountPrice ? String(quotationToEdit.discountPrice) : '');
+      setDiscountPrice(quotationToEdit.discountPrice != null ? String(quotationToEdit.discountPrice) : '');
       setStatus(quotationToEdit.status || 'Draft');
       setNotes(quotationToEdit.notes || '');
     } else {
@@ -137,8 +137,8 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
 
   // Calculations
   const calculatedTotal = items.reduce((sum, item) => sum + (item.rate > 0 ? (item.qty * item.rate) : 0), 0) || 30000;
-  const numDiscount = discountPrice && !isNaN(Number(discountPrice)) ? Number(discountPrice) : null;
-  const effectiveTotal = numDiscount !== null ? numDiscount : calculatedTotal;
+  const numDiscount = discountPrice !== '' && !isNaN(Number(discountPrice)) ? Number(discountPrice) : null;
+  const effectiveTotal = numDiscount !== null && numDiscount > 0 && numDiscount <= calculatedTotal ? numDiscount : calculatedTotal;
   const remainingAmount = Math.max(0, effectiveTotal - Number(advancePaid));
 
   const handleSubmit = (e) => {
@@ -560,6 +560,12 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
               <p className="text-[10px] text-slate-500">
                 Shows strike-through original total (e.g. ~~₹45,000~~ ₹42,000) on quotation letterhead.
               </p>
+              {numDiscount !== null && numDiscount <= 0 && (
+                <p className="text-[10px] text-red-500 font-semibold mt-0.5">Discount price must be greater than 0.</p>
+              )}
+              {numDiscount !== null && numDiscount > calculatedTotal && (
+                <p className="text-[10px] text-red-500 font-semibold mt-0.5">Discount price cannot exceed total (₹{new Intl.NumberFormat('en-IN').format(calculatedTotal)}).</p>
+              )}
             </div>
             <div className="w-full sm:w-44">
               <input
