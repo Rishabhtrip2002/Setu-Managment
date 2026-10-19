@@ -3,15 +3,14 @@ import React from 'react';
 const Logo = ({ className = 'h-8', showText = true, isDark = false }) => {
   return (
     <div className={`flex items-center gap-3 select-none ${className}`}>
-      <div className="relative shrink-0 w-11 h-11 flex items-center justify-center rounded-xl bg-gradient-to-br from-orange-50 via-white to-amber-50 shadow-lg shadow-orange-400/25 border border-orange-300/60 p-1.5 ring-2 ring-orange-400/20">
-        <div className="absolute inset-0 rounded-xl bg-orange-400/10 blur-md animate-pulse pointer-events-none" />
+      <div className="relative shrink-0 w-11 h-11 flex items-center justify-center rounded-2xl bg-white shadow-md shadow-orange-500/10 border border-slate-200/90 p-1 ring-2 ring-orange-500/15">
         <img
           src="/SETULOGO.png"
           alt="SETU SOLUTION"
-          className="relative w-full h-full object-contain drop-shadow-[0_2px_12px_rgba(249,115,22,0.45)]"
+          className="relative w-full h-full object-contain drop-shadow-[0_1px_3px_rgba(249,115,22,0.35)]"
           onError={(e) => {
             e.target.onerror = null;
-            e.target.src = '/src/assets/SETULOGO.png';
+            e.target.src = '/SETULOGO_WHITE.png';
           }}
         />
       </div>

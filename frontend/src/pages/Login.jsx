@@ -155,31 +155,31 @@ const Login = () => {
   const isPendingSetupError = displayError && displayError.toLowerCase().includes('pending');
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 bg-radial from-slate-900 via-slate-950 to-black text-slate-100 relative overflow-hidden">
+    <div className="min-h-screen w-full flex items-center justify-center p-4 sm:p-6 bg-gradient-to-br from-slate-50 via-white to-orange-50/30 text-slate-900 relative overflow-hidden">
       {/* Decorative ambient gradient glows */}
-      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-orange-500/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-orange-200/35 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-1/4 -right-32 w-96 h-96 bg-amber-200/30 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(#e2e8f0_1px,transparent_1px)] [background-size:20px_20px] opacity-60 pointer-events-none" />
 
       {/* Main Glassmorphic Login Card */}
-      <div className="w-full max-w-md bg-slate-900/85 border border-slate-800/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl relative z-10 transition-all">
+      <div className="w-full max-w-md bg-white/95 border border-slate-200/90 backdrop-blur-xl rounded-3xl p-6 sm:p-8 shadow-2xl shadow-slate-200/60 relative z-10 transition-all">
         {/* Brand Header */}
         <div className="text-center mb-6">
           <div className="flex justify-center mb-4">
-            <div className="p-3 rounded-2xl bg-slate-850/95 border border-slate-750/70 shadow-inner">
-              {/* Passed isDark={true} so 'SETU' renders in pure white text with high contrast */}
-              <Logo className="h-10" showText={true} isDark={true} />
+            <div className="p-3.5 rounded-3xl bg-white border border-slate-200/80 shadow-md ring-2 ring-orange-500/15">
+              <Logo className="h-10" showText={true} isDark={false} />
             </div>
           </div>
 
           {/* Mode Switch Tabs */}
-          <div className="inline-flex p-1 bg-slate-950/70 border border-slate-800 rounded-2xl mb-4">
+          <div className="inline-flex p-1 bg-slate-100 border border-slate-200/80 rounded-2xl mb-4">
             <button
               type="button"
               onClick={switchToSignIn}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 mode === 'signin'
                   ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/20'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Lock className="w-3.5 h-3.5" />
@@ -188,10 +188,10 @@ const Login = () => {
             <button
               type="button"
               onClick={() => switchToSetup()}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold transition-all ${
+              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 mode === 'setup'
                   ? 'bg-gradient-to-r from-orange-500 to-amber-500 text-white shadow-md shadow-orange-500/20'
-                  : 'text-slate-400 hover:text-slate-200'
+                  : 'text-slate-600 hover:text-slate-900'
               }`}
             >
               <Sparkles className="w-3.5 h-3.5" />
@@ -199,10 +199,10 @@ const Login = () => {
             </button>
           </div>
 
-          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-white mt-1">
+          <h2 className="text-xl sm:text-2xl font-black tracking-tight text-slate-900 mt-1">
             {mode === 'signin' ? 'Sign In to SETU CRM' : 'Employee Account Activation'}
           </h2>
-          <p className="text-xs sm:text-sm text-slate-400 mt-1.5">
+          <p className="text-xs sm:text-sm text-slate-500 mt-1.5">
             {mode === 'signin' 
               ? 'Enter your registered credentials to access your workspace.'
               : 'Complete your first-time password setup for registered team members.'}
@@ -216,16 +216,16 @@ const Login = () => {
           <>
             {/* Error Alert */}
             {displayError && (
-              <div className="mb-5 p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs leading-relaxed animate-[fadeIn_0.2s_ease-out]">
+              <div className="mb-5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs leading-relaxed animate-[fadeIn_0.2s_ease-out]">
                 <div className="flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="font-medium">{displayError}</p>
+                    <p className="font-semibold">{displayError}</p>
                     {isPendingSetupError && (
                       <button
                         type="button"
                         onClick={() => switchToSetup(email)}
-                        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-[11px] font-bold shadow-xs transition-all"
+                        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-[11px] font-bold shadow-xs transition-all cursor-pointer"
                       >
                         <KeyRound className="w-3 h-3" />
                         <span>Activate Password Now →</span>
@@ -240,11 +240,11 @@ const Login = () => {
             <form onSubmit={handleLoginSubmit} className="space-y-4">
               {/* Email Input */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Email Address
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                     <Mail className="w-4 h-4" />
                   </div>
                   <input
@@ -253,18 +253,18 @@ const Login = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your registered email address"
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-950/70 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50/80 hover:bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 transition-all shadow-xs"
                   />
                 </div>
               </div>
 
               {/* Password Input */}
               <div>
-                <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                   Password
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                  <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                     <Lock className="w-4 h-4" />
                   </div>
                   <input
@@ -273,12 +273,12 @@ const Login = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••••••"
-                    className="w-full pl-10 pr-10 py-2.5 bg-slate-950/70 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
+                    className="w-full pl-10 pr-10 py-2.5 bg-slate-50/80 hover:bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 transition-all shadow-xs"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition-colors"
+                    className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
                     title={showPassword ? 'Hide password' : 'Show password'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -307,13 +307,13 @@ const Login = () => {
             </form>
 
             {/* Quick First-Time Setup helper */}
-            <div className="mt-5 pt-4 border-t border-slate-800 text-center">
-              <p className="text-xs text-slate-400">
+            <div className="mt-5 pt-4 border-t border-slate-100 text-center">
+              <p className="text-xs text-slate-500">
                 New employee registered by Super Admin?{' '}
                 <button
                   type="button"
                   onClick={() => switchToSetup()}
-                  className="text-orange-400 hover:text-orange-300 font-bold transition-colors inline-flex items-center gap-1"
+                  className="text-orange-600 hover:text-orange-700 font-bold transition-colors inline-flex items-center gap-1 cursor-pointer"
                 >
                   <span>Set up password</span>
                   <ArrowRight className="w-3 h-3" />
@@ -330,16 +330,16 @@ const Login = () => {
           <div className="space-y-4">
             {/* Setup Error Alert */}
             {setupError && (
-              <div className="p-3.5 rounded-2xl bg-rose-500/10 border border-rose-500/25 text-rose-300 text-xs leading-relaxed animate-[fadeIn_0.2s_ease-out]">
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs leading-relaxed animate-[fadeIn_0.2s_ease-out]">
                 <div className="flex items-start gap-2.5">
-                  <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
+                  <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />
                   <div className="flex-1">
-                    <p className="font-medium">{setupError}</p>
+                    <p className="font-semibold">{setupError}</p>
                     {setupError.toLowerCase().includes('already') && (
                       <button
                         type="button"
                         onClick={switchToSignIn}
-                        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[11px] font-bold border border-slate-700 transition-all"
+                        className="mt-2 inline-flex items-center gap-1.5 px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-[11px] font-bold border border-slate-300 transition-all cursor-pointer"
                       >
                         <Lock className="w-3 h-3" />
                         <span>Go to Sign In →</span>
@@ -354,11 +354,11 @@ const Login = () => {
             {setupStep === 1 && (
               <form onSubmit={handleVerifyEmailSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Registered Employee Email
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                       <Mail className="w-4 h-4" />
                     </div>
                     <input
@@ -367,7 +367,7 @@ const Login = () => {
                       value={setupEmail}
                       onChange={(e) => setSetupEmail(e.target.value)}
                       placeholder="e.g. employee@setusolution.com"
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-950/70 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
+                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50/80 hover:bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 transition-all shadow-xs"
                     />
                   </div>
                   <p className="text-[11px] text-slate-500 mt-1.5">
@@ -399,32 +399,32 @@ const Login = () => {
             {setupStep === 2 && verifiedEmployee && (
               <form onSubmit={handleSetPasswordSubmit} className="space-y-4 animate-[fadeIn_0.2s_ease-out]">
                 {/* Employee Info Card */}
-                <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800 flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-orange-500/20 text-orange-400 font-black text-sm flex items-center justify-center shrink-0 border border-orange-500/30">
+                <div className="p-3.5 rounded-2xl bg-orange-50/70 border border-orange-200/80 flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-orange-500/15 text-orange-600 font-black text-sm flex items-center justify-center shrink-0 border border-orange-400/30">
                     {verifiedEmployee.name.charAt(0).toUpperCase()}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-bold text-white text-sm truncate">{verifiedEmployee.name}</span>
-                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded bg-slate-800 text-slate-300">
+                      <span className="font-bold text-slate-900 text-sm truncate">{verifiedEmployee.name}</span>
+                      <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded bg-white text-slate-700 border border-slate-200 shadow-xs">
                         {verifiedEmployee.id}
                       </span>
                     </div>
-                    <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500 mt-0.5">
                       <span className="truncate">{verifiedEmployee.position}</span>
                       <span>•</span>
-                      <span className="text-orange-400 font-semibold">{verifiedEmployee.department}</span>
+                      <span className="text-orange-600 font-semibold">{verifiedEmployee.department}</span>
                     </div>
                   </div>
                 </div>
 
                 {/* New Password Input */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Create New Password
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                       <Lock className="w-4 h-4" />
                     </div>
                     <input
@@ -434,12 +434,12 @@ const Login = () => {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="At least 6 characters"
-                      className="w-full pl-10 pr-10 py-2.5 bg-slate-950/70 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
+                      className="w-full pl-10 pr-10 py-2.5 bg-slate-50/80 hover:bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 transition-all shadow-xs"
                     />
                     <button
                       type="button"
                       onClick={() => setShowNewPassword(!showNewPassword)}
-                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition-colors"
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
                     >
                       {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -448,11 +448,11 @@ const Login = () => {
 
                 {/* Confirm Password Input */}
                 <div>
-                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1.5">
                     Confirm Password
                   </label>
                   <div className="relative">
-                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
+                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
                       <Lock className="w-4 h-4" />
                     </div>
                     <input
@@ -462,12 +462,12 @@ const Login = () => {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="Re-enter password"
-                      className="w-full pl-10 pr-10 py-2.5 bg-slate-950/70 border border-slate-800 rounded-xl text-sm text-white placeholder-slate-500 focus:outline-hidden focus:ring-2 focus:ring-orange-500/50 focus:border-orange-500 transition-all"
+                      className="w-full pl-10 pr-10 py-2.5 bg-slate-50/80 hover:bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:bg-white focus:outline-hidden focus:ring-2 focus:ring-orange-500/40 focus:border-orange-500 transition-all shadow-xs"
                     />
                     <button
                       type="button"
                       onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-500 hover:text-slate-300 transition-colors"
+                      className="absolute inset-y-0 right-0 pr-3.5 flex items-center text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
                     >
                       {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                     </button>
@@ -478,11 +478,11 @@ const Login = () => {
                 {confirmPassword && (
                   <div className="flex items-center gap-1.5 text-[11px]">
                     {newPassword === confirmPassword ? (
-                      <span className="text-emerald-400 flex items-center gap-1 font-semibold">
+                      <span className="text-emerald-600 flex items-center gap-1 font-semibold">
                         <CheckCircle2 className="w-3.5 h-3.5" /> Passwords match
                       </span>
                     ) : (
-                      <span className="text-rose-400 flex items-center gap-1 font-semibold">
+                      <span className="text-rose-600 flex items-center gap-1 font-semibold">
                         <AlertCircle className="w-3.5 h-3.5" /> Passwords do not match
                       </span>
                     )}
@@ -493,7 +493,7 @@ const Login = () => {
                   <button
                     type="button"
                     onClick={() => setSetupStep(1)}
-                    className="py-3 px-3.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition-all border border-slate-700"
+                    className="py-3 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-all border border-slate-200 cursor-pointer"
                     title="Change email"
                   >
                     <ArrowLeft className="w-4 h-4" />
@@ -522,14 +522,14 @@ const Login = () => {
             {/* Step 3: Success State */}
             {setupStep === 3 && (
               <div className="text-center py-6 animate-[fadeIn_0.3s_ease-out]">
-                <div className="w-14 h-14 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center mx-auto mb-3">
+                <div className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto mb-3 shadow-xs">
                   <CheckCircle2 className="w-8 h-8" />
                 </div>
-                <h3 className="text-lg font-bold text-white">Setup Completed!</h3>
-                <p className="text-xs text-slate-400 mt-1.5 max-w-xs mx-auto">
+                <h3 className="text-lg font-bold text-slate-900">Setup Completed!</h3>
+                <p className="text-xs text-slate-500 mt-1.5 max-w-xs mx-auto">
                   {setupSuccessMessage || 'Your account is active. Loading your dashboard...'}
                 </p>
-                <div className="mt-4 flex items-center justify-center gap-2 text-xs text-orange-400 font-semibold">
+                <div className="mt-4 flex items-center justify-center gap-2 text-xs text-orange-600 font-semibold">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Entering SETU CRM...</span>
                 </div>
@@ -538,11 +538,11 @@ const Login = () => {
 
             {/* Back to Sign In Link */}
             {setupStep !== 3 && (
-              <div className="mt-4 pt-3 border-t border-slate-800 text-center">
+              <div className="mt-4 pt-3 border-t border-slate-100 text-center">
                 <button
                   type="button"
                   onClick={switchToSignIn}
-                  className="text-xs text-slate-400 hover:text-slate-200 transition-colors inline-flex items-center gap-1 font-medium"
+                  className="text-xs text-slate-500 hover:text-slate-800 transition-colors inline-flex items-center gap-1 font-medium cursor-pointer"
                 >
                   <ArrowLeft className="w-3 h-3" />
                   <span>Already set up? Back to Sign In</span>
@@ -553,8 +553,8 @@ const Login = () => {
         )}
 
         {/* Security Notice Footer */}
-        <div className="mt-6 pt-5 border-t border-slate-800/80 text-center">
-          <p className="text-[11px] text-slate-500 leading-relaxed">
+        <div className="mt-6 pt-5 border-t border-slate-100 text-center">
+          <p className="text-[11px] text-slate-400 leading-relaxed">
             Secured by Firebase Authentication & Cloud Firestore Rules.
           </p>
         </div>

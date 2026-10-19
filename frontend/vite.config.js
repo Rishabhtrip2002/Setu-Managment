@@ -7,26 +7,26 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['SETULOGO.png', 'favicon.svg'],
+      includeAssets: ['SETULOGO.png', 'SETULOGO_WHITE.png', 'favicon.svg'],
       manifest: {
         name: 'Setu Solution | CRM & Lead Management',
         short_name: 'Setu CRM',
         description: 'High-performance CRM for custom software consulting — pipeline tracking, quotation builder, billing & cold calling.',
-        theme_color: '#f97316',
-        background_color: '#0f172a',
+        theme_color: '#ffffff',
+        background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
         icons: [
           {
-            src: '/SETULOGO.png',
+            src: '/SETULOGO_WHITE.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/SETULOGO.png',
+            src: '/SETULOGO_WHITE.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'maskable'
