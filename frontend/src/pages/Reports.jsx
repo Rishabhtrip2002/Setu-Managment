@@ -260,7 +260,55 @@ const Reports = () => {
         </div>
 
         <div className="overflow-hidden border border-slate-200 bg-white rounded-2xl">
-          <div className="overflow-x-auto">
+          {/* Mobile Card List View (Phones) */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {ageingAccountsList.map((acc, idx) => (
+              <div key={idx} className="p-4 space-y-3">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <h4 className="font-bold text-slate-900 text-sm">{acc.name}</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">{acc.companyName}</p>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider block">Total Due</span>
+                    <span className="font-black text-rose-600 font-mono text-sm">
+                      {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(acc.totalOverdue)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-2 pt-1 text-center">
+                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase block">0-30 Days</span>
+                    <span className={`text-xs font-bold ${acc.bracket1 > 0 ? 'text-amber-600' : 'text-slate-400'}`}>
+                      {acc.bracket1 > 0 ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(acc.bracket1) : '—'}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase block">30-60 Days</span>
+                    <span className={`text-xs font-bold ${acc.bracket2 > 0 ? 'text-orange-600' : 'text-slate-400'}`}>
+                      {acc.bracket2 > 0 ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(acc.bracket2) : '—'}
+                    </span>
+                  </div>
+                  <div className="p-2 rounded-xl bg-slate-50 border border-slate-100">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase block">60+ Days</span>
+                    <span className={`text-xs font-black ${acc.bracket3 > 0 ? 'text-rose-600 animate-pulse' : 'text-slate-400'}`}>
+                      {acc.bracket3 > 0 ? new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(acc.bracket3) : '—'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+
+            {ageingAccountsList.length === 0 && (
+              <div className="text-center py-10 px-4 text-orange-600 bg-orange-50 font-bold text-xs uppercase tracking-wide">
+                ALL COLLECTIONS ARE UP TO DATE! ZERO RECEIVABLES ARE AGEING.
+              </div>
+            )}
+          </div>
+
+          {/* Desktop Table View (tablets & up) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-600 font-bold uppercase tracking-wider text-[10px]">

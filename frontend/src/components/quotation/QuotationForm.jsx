@@ -216,16 +216,16 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
   ];
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/40 backdrop-blur-sm">
-      <div className="relative w-full max-w-2xl overflow-hidden border border-slate-200 bg-white rounded-2xl shadow-2xl animate-[scaleUp_0.3s_ease-out]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/40 backdrop-blur-sm">
+      <div className="relative w-full max-w-2xl overflow-hidden border border-slate-200 bg-white rounded-2xl shadow-2xl animate-[scaleUp_0.3s_ease-out] max-h-[92vh] flex flex-col">
         
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/80">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 bg-slate-50/80 shrink-0">
           <div className="flex items-center gap-3">
-            <h3 className="text-lg font-bold text-slate-900">
+            <h3 className="text-base sm:text-lg font-bold text-slate-900">
               {quotationToEdit ? `Edit ${docType} ${quotationToEdit.id}` : `Create New ${docType}`}
             </h3>
-            <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-bold bg-orange-50 text-orange-600 border border-orange-200">
+            <span className="px-2 py-0.5 rounded-lg text-xs font-mono font-bold bg-orange-50 text-orange-600 border border-orange-200">
               {docId}
             </span>
           </div>
@@ -238,7 +238,7 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-6 space-y-4 max-h-[78vh] overflow-y-auto">
+        <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-4 overflow-y-auto touch-scroll flex-1">
           
           {/* Document Type Switcher */}
           <div>
@@ -595,17 +595,17 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
           </div>
 
           {/* Footer Actions */}
-          <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-200">
+          <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 pt-4 border-t border-slate-200 shrink-0">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 cursor-pointer"
+              className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-900 cursor-pointer text-center"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-5 py-2 text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale shadow-xs cursor-pointer"
+              className="px-5 py-2 text-sm font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale shadow-xs cursor-pointer text-center"
             >
               {quotationToEdit ? 'Save Changes' : `Save & Generate ${docType}`}
             </button>

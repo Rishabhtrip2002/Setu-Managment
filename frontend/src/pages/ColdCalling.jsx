@@ -270,7 +270,7 @@ const ColdCalling = () => {
       
       {/* Toast Notification */}
       {toast && (
-        <div className={`fixed bottom-6 right-6 z-50 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-bold flex items-center gap-2 animate-[slideUp_0.25s_ease-out] ${
+        <div className={`fixed bottom-20 lg:bottom-6 right-4 sm:right-6 z-50 px-4 py-3 rounded-2xl shadow-2xl border text-xs font-bold flex items-center gap-2 animate-[slideUp_0.25s_ease-out] ${
           toast.type === 'error' 
             ? 'bg-rose-50 text-rose-900 border-rose-300' 
             : 'bg-emerald-50 text-emerald-950 border-emerald-300'
@@ -323,7 +323,7 @@ const ColdCalling = () => {
       </div>
 
       {/* 2. Top Metric Cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-3">
         <div 
           onClick={() => { setActiveTab('unassigned'); setCurrentPage(1); }}
           className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
@@ -338,7 +338,7 @@ const ColdCalling = () => {
             </span>
             <Users className={`w-4 h-4 ${activeTab === 'unassigned' ? 'text-white' : 'text-amber-500'}`} />
           </div>
-          <p className="text-2xl font-bold mt-1">{counts.unassigned}</p>
+          <p className="text-xl sm:text-2xl font-bold mt-1">{counts.unassigned}</p>
           <p className={`text-[10px] mt-0.5 truncate ${activeTab === 'unassigned' ? 'text-amber-100' : 'text-slate-400'}`}>
             Ready to claim via call
           </p>
@@ -358,7 +358,7 @@ const ColdCalling = () => {
             </span>
             <UserCheck className={`w-4 h-4 ${activeTab === 'my_leads' ? 'text-white' : 'text-orange-500'}`} />
           </div>
-          <p className="text-2xl font-bold mt-1">{counts.myLeads}</p>
+          <p className="text-xl sm:text-2xl font-bold mt-1">{counts.myLeads}</p>
           <p className={`text-[10px] mt-0.5 truncate ${activeTab === 'my_leads' ? 'text-orange-100' : 'text-slate-400'}`}>
             My claimed prospects
           </p>
@@ -378,7 +378,7 @@ const ColdCalling = () => {
             </span>
             <CalendarClock className={`w-4 h-4 ${activeTab === 'followup_due' ? 'text-white' : 'text-teal-500'}`} />
           </div>
-          <p className="text-2xl font-bold mt-1">{counts.followupDue}</p>
+          <p className="text-xl sm:text-2xl font-bold mt-1">{counts.followupDue}</p>
           <p className={`text-[10px] mt-0.5 truncate ${activeTab === 'followup_due' ? 'text-teal-100' : 'text-slate-400'}`}>
             Callbacks scheduled
           </p>
@@ -449,7 +449,7 @@ const ColdCalling = () => {
       <div className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-4">
         
         {/* Filter Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none border-b border-slate-100">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar border-b border-slate-100">
           {[
             { id: 'unassigned', label: 'Unassigned Pool', count: counts.unassigned },
             { id: 'my_leads', label: 'Assigned to Me', count: counts.myLeads },

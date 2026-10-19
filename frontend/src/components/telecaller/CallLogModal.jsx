@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useCRM } from '../../context/CRMContext';
+import { playNotificationChime } from '../../services/notificationService';
 import { 
   X, 
   Phone, 
@@ -270,6 +271,10 @@ const CallLogModal = ({ isOpen, onClose, lead = null, coldLead = null, onSuccess
         setErrorMsg(result.error || 'Failed to record call attempt.');
         setSubmitting(false);
         return;
+      }
+
+      if (scheduleFollowUp) {
+        playNotificationChime();
       }
 
       if (onSuccess) {

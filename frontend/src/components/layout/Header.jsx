@@ -1,9 +1,35 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useCRM } from '../../context/CRMContext';
-import { Menu, Plus, ShieldCheck, BellRing, CalendarClock, LogOut } from 'lucide-react';
+import { Menu, Plus, ShieldCheck, BellRing, CalendarClock, LogOut, Sparkles } from 'lucide-react';
+import { 
+  getNotificationPermission, 
+  requestNotificationPermission, 
+  sendBrowserNotification,
+  playNotificationChime,
+  isNotificationSupported 
+} from '../../services/notificationService';
 
 const Header = ({ activePage, setSidebarOpen, onQuickAction, onOpenFollowUpAlert, onOpenFollowUpModal }) => {
   const { currentUser, followUps, getTodayDateString, cloudSyncStatus, logout } = useCRM();
+  const [pushPerm, setPushPerm] = useState(() => getNotificationPermission());
+
+  useEffect(() => {
+    if (!isNotificationSupported()) return;
+    setPushPerm(getNotificationPermission());
+  }, []);
+
+  const handlePushClick = async () => {
+    if (pushPerm === 'granted') {
+      playNotificationChime();
+      sendBrowserNotification('🔔 Push Notifications Active', {
+        body: 'You are subscribed to instant call and follow-up alerts in SETU CRM!',
+        tag: 'header_test_notification'
+      });
+    } else {
+      const res = await requestNotificationPermission();
+      setPushPerm(res.permission);
+    }
+  };
 
   const today = getTodayDateString();
   const dueTodayTasks = followUps.filter(f => f.status === 'Pending' && f.dueDate <= today);
@@ -25,7 +51,7 @@ const Header = ({ activePage, setSidebarOpen, onQuickAction, onOpenFollowUpAlert
   };
 
   return (
-    <header className="sticky top-0 z-30 flex items-center justify-between h-16 px-4 sm:px-6 border-b border-slate-200 bg-white/90 backdrop-blur-md shadow-xs">
+    <header className="sticky top-0 z-30 flex items-center justify-between h-14 sm:h-16 px-2.5 sm:px-4 lg:px-6 border-b border-slate-200 bg-white/90 backdrop-blur-md shadow-xs gap-2 overflow-hidden">
       {/* Left side: Hamburger (mobile) & Title */}
       <div className="flex items-center gap-3">
         <button
@@ -36,7 +62,7 @@ const Header = ({ activePage, setSidebarOpen, onQuickAction, onOpenFollowUpAlert
           <Menu className="w-5 h-5" />
         </button>
         <div className="flex items-center gap-2.5">
-          <h1 className="text-lg sm:text-xl font-bold tracking-tight text-slate-900 font-sans truncate">
+          <h1 className="text-sm sm:text-lg lg:text-xl font-bold tracking-tight text-slate-900 font-sans truncate max-w-[120px] sm:max-w-none">
             {getPageTitle()}
           </h1>
           <div 
@@ -68,7 +94,7 @@ const Header = ({ activePage, setSidebarOpen, onQuickAction, onOpenFollowUpAlert
       </div>
 
       {/* Right side: Actions, Role Selector & Follow-up Bell */}
-      <div className="flex items-center gap-2 sm:gap-3">
+      <div className="flex items-center gap-1.5 sm:gap-2 lg:gap-3 shrink-0">
         {/* Follow-up Reminder Bell Icon */}
         <button
           onClick={() => onOpenFollowUpModal ? onOpenFollowUpModal() : (onOpenFollowUpAlert && onOpenFollowUpAlert())}
@@ -84,6 +110,34 @@ const Header = ({ activePage, setSidebarOpen, onQuickAction, onOpenFollowUpAlert
             <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-orange-500 text-white text-[9px] font-black flex items-center justify-center ring-2 ring-white">
               {dueCount}
             </span>
+          )}
+        </button>
+
+        {/* Push Notification Status & Test Button */}
+        <button
+          type="button"
+          onClick={handlePushClick}
+          className={`hidden sm:inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all cursor-pointer ${
+            pushPerm === 'granted'
+              ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100 shadow-2xs'
+              : 'bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 shadow-2xs'
+          }`}
+          title={
+            pushPerm === 'granted' 
+              ? 'Push Notifications Active: Click to send test alert' 
+              : 'Click to enable Browser Push Notifications for calls & follow-up reminders'
+          }
+        >
+          {pushPerm === 'granted' ? (
+            <>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+              <span className="text-[11px] font-bold">Push On</span>
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+              <span className="text-[11px] font-bold">Enable Push</span>
+            </>
           )}
         </button>
 
@@ -118,8 +172,8 @@ const Header = ({ activePage, setSidebarOpen, onQuickAction, onOpenFollowUpAlert
         )}
 
         {/* Authenticated Super Admin Badge */}
-        <div className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border bg-orange-50/80 border-orange-200/90 text-orange-700 shadow-xs text-xs font-semibold">
-          <ShieldCheck className="w-4 h-4 text-orange-600 shrink-0" />
+        <div className="hidden sm:flex items-center gap-1.5 px-2 sm:px-3 py-1.5 rounded-xl border bg-orange-50/80 border-orange-200/90 text-orange-700 shadow-xs text-xs font-semibold">
+          <ShieldCheck className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-orange-600 shrink-0" />
           <span className="hidden lg:inline truncate max-w-[140px]">{currentUser?.name || 'User'}</span>
           <span className="px-1.5 py-0.5 rounded text-[10px] bg-orange-500 text-white font-bold uppercase tracking-wider">
             {currentUser?.role || 'Staff'}
@@ -129,10 +183,10 @@ const Header = ({ activePage, setSidebarOpen, onQuickAction, onOpenFollowUpAlert
         {/* Sign Out Button */}
         <button
           onClick={logout}
-          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-slate-600 transition-all text-xs font-semibold shadow-xs"
+          className="flex items-center gap-1 sm:gap-1.5 px-2 sm:px-2.5 py-1.5 rounded-xl border border-slate-200 bg-white hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 text-slate-600 transition-all text-xs font-semibold shadow-xs"
           title="Sign Out from Super Admin"
         >
-          <LogOut className="w-3.5 h-3.5 text-slate-500 hover:text-rose-600" />
+          <LogOut className="w-3.5 h-3.5 text-slate-500" />
           <span className="hidden sm:inline">Logout</span>
         </button>
       </div>

@@ -80,6 +80,33 @@ body {
   @apply transition-all duration-300 hover:shadow-[0_0_15px_rgba(249,115,22,0.25)];
 }
 
+/* Safe area for notched phones (iPhone X+) */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Hide scrollbar but keep scroll functionality for tab strips */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Smooth touch scrolling for mobile nested containers */
+.touch-scroll {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Prevent content from being hidden behind fixed bottom bar */
+@media (max-width: 1023px) {
+  .mobile-safe-content {
+    padding-bottom: calc(4.5rem + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* Print Specific Rules for invoices */
 @media print {
   body {

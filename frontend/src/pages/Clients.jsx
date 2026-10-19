@@ -140,7 +140,7 @@ const Clients = ({ initialClientId = '', addQuoteTrigger, addPaymentTrigger }) =
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
       
       {/* Left Panel: Client List */}
-      <div className="lg:col-span-1 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-col h-[75vh]">
+      <div className="lg:col-span-1 bg-white border border-slate-200 rounded-2xl shadow-xs flex flex-col h-auto max-h-[50vh] lg:max-h-none lg:h-[75vh]">
         {/* Search */}
         <div className="p-4 border-b border-slate-100">
           <div className="relative">
@@ -192,7 +192,7 @@ const Clients = ({ initialClientId = '', addQuoteTrigger, addPaymentTrigger }) =
       </div>
 
       {/* Right Panel: Unified Client Workspace */}
-      <div className="lg:col-span-2 flex flex-col bg-white border border-slate-200 rounded-2xl shadow-xs h-[75vh] overflow-hidden">
+      <div className="lg:col-span-2 flex flex-col bg-white border border-slate-200 rounded-2xl shadow-xs h-auto min-h-[60vh] lg:h-[75vh] overflow-hidden">
         {activeClient ? (
           <>
             {/* Workspace Header */}
@@ -239,7 +239,7 @@ const Clients = ({ initialClientId = '', addQuoteTrigger, addPaymentTrigger }) =
             </div>
 
             {/* Workspace Tabs */}
-            <div className="flex border-b border-slate-200 bg-slate-50/70 px-3 overflow-x-auto">
+            <div className="flex border-b border-slate-200 bg-slate-50/70 px-2 sm:px-3 overflow-x-auto no-scrollbar">
               {[
                 { id: 'profile', label: 'Client Profile', icon: Building2 },
                 { id: 'quotes', label: 'Quotes Log', icon: FileText },
@@ -254,7 +254,7 @@ const Clients = ({ initialClientId = '', addQuoteTrigger, addPaymentTrigger }) =
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-1.5 px-3.5 py-3 text-[11px] font-bold uppercase tracking-wider border-b-2 whitespace-nowrap transition-all cursor-pointer ${
+                    className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-2.5 sm:py-3 text-[10px] sm:text-[11px] font-bold uppercase tracking-wider border-b-2 whitespace-nowrap transition-all cursor-pointer ${
                       active 
                         ? 'border-orange-500 text-orange-600 bg-white' 
                         : 'border-transparent text-slate-500 hover:text-slate-800'

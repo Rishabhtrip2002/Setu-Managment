@@ -136,10 +136,10 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
       <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl border-l border-slate-200 bg-white shadow-2xl flex flex-col h-full animate-[slideLeft_0.3s_ease-out] text-slate-800">
         
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50/90 gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 bg-slate-50/90 gap-2.5 sm:gap-3">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-lg font-bold text-slate-900">{lead.name}</h3>
+              <h3 className="text-base sm:text-lg font-bold text-slate-900">{lead.name}</h3>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadge(lead.status)}`}>
                 {lead.status}
               </span>
@@ -187,7 +187,7 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
         </div>
 
         {/* Tab Headers */}
-        <div className="flex px-4 border-b border-slate-200 bg-slate-50/50 overflow-x-auto">
+        <div className="flex px-3 sm:px-4 border-b border-slate-200 bg-slate-50/50 overflow-x-auto no-scrollbar">
           {[
             { id: 'calls', label: 'Telecaller & Calls', icon: PhoneCall, badge: (lead.callLogs?.length || null) },
             { id: 'quotes', label: 'Quotation / Bill', icon: FileText },

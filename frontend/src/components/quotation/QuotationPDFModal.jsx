@@ -226,23 +226,24 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
       <div className="relative w-full max-w-4xl overflow-hidden border border-slate-200 bg-white rounded-2xl shadow-2xl animate-[scaleUp_0.25s_ease-out] flex flex-col max-h-[94vh]">
         
         {/* Modal Top Bar */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200 bg-slate-50/80 text-slate-900">
-          <div className="flex items-center gap-3">
-            <span className={`px-2.5 py-0.5 rounded-lg text-xs font-bold uppercase tracking-wider ${
+        <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3.5 border-b border-slate-200 bg-slate-50/80 text-slate-900 gap-2">
+          <div className="flex items-center gap-2 sm:gap-3 truncate">
+            <span className={`px-2 sm:px-2.5 py-0.5 rounded-lg text-[10px] sm:text-xs font-bold uppercase tracking-wider shrink-0 ${
               isInvoice ? 'bg-amber-100 text-amber-800 border border-amber-200' : 'bg-orange-50 text-orange-600 border border-orange-200'
             }`}>
-              {docTitle} Document
+              {docTitle}
             </span>
-            <span className="font-mono font-bold text-xs text-slate-700">{displayDocId}</span>
+            <span className="font-mono font-bold text-xs text-slate-700 truncate">{displayDocId}</span>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
             <button
               onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale transition-all shadow-xs cursor-pointer"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3.5 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale transition-all shadow-xs cursor-pointer whitespace-nowrap"
             >
               <Printer className="w-3.5 h-3.5" />
-              <span>Print / Save PDF (A4 Format)</span>
+              <span className="hidden sm:inline">Print / Save PDF (A4 Format)</span>
+              <span className="sm:hidden">Print PDF</span>
             </button>
             <button 
               onClick={onClose}

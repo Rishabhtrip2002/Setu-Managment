@@ -472,7 +472,137 @@ const Leads = ({ addQuoteTrigger, addPaymentTrigger }) => {
       {/* List View */}
       {viewMode === 'list' && (
         <div className="overflow-hidden border border-slate-200 bg-white shadow-sm rounded-2xl">
-          <div className="overflow-x-auto">
+          {/* Mobile Card List View (phones below md) */}
+          <div className="md:hidden divide-y divide-slate-100">
+            {filteredLeads.map(lead => {
+              const leadPendingFollowUp = followUps.find(f => f.leadId === lead.id && f.status === 'Pending');
+
+              return (
+                <div 
+                  key={lead.id}
+                  onClick={() => handleOpenDrawer(lead)}
+                  className="p-4 space-y-3 cursor-pointer hover:bg-slate-50/60 transition-colors"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                          {lead.id}
+                        </span>
+                        <span className={`px-2 py-0.2 rounded-full text-[9px] font-bold border ${getSourceBadge(lead.source)}`}>
+                          {lead.source === 'Cold Calling' ? 'Cold Call' : lead.source}
+                        </span>
+                      </div>
+                      <h4 className="font-bold text-slate-900 text-sm mt-1">{lead.name}</h4>
+                      <p className="text-xs text-slate-500 font-mono mt-0.5">{lead.phone}</p>
+                    </div>
+
+                    <select
+                      value={lead.status}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => {
+                        e.stopPropagation();
+                        if (e.target.value !== lead.status) {
+                          updateLeadStatus(lead.id, e.target.value);
+                          showToast(`Status updated to ${e.target.value}`);
+                        }
+                      }}
+                      className={`text-[11px] font-bold px-2.5 py-1 rounded-full border outline-none cursor-pointer ${
+                        lead.status === 'Won' ? 'bg-orange-50 text-orange-600 border-orange-200' :
+                        lead.status === 'Lost' ? 'bg-rose-50 text-rose-600 border-rose-200' :
+                        lead.status === 'Quoted' ? 'bg-purple-50 text-purple-600 border-purple-200' :
+                        lead.status === 'Contacted' ? 'bg-amber-50 text-amber-600 border-amber-200' :
+                        lead.status === 'Negotiation' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' :
+                        'bg-blue-50 text-blue-600 border-blue-200'
+                      }`}
+                    >
+                      {stages.map(st => <option key={st} value={st}>{st}</option>)}
+                    </select>
+                  </div>
+
+                  {/* Info Row: Assigned & Follow-up */}
+                  <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                    <div className="truncate max-w-[150px]">
+                      <span className="text-[10px] text-slate-400 uppercase font-semibold block">Assigned To</span>
+                      <span className="font-semibold text-slate-800 truncate">{lead.assignedTo || 'Unassigned'}</span>
+                    </div>
+
+                    <div>
+                      {leadPendingFollowUp ? (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-50 text-orange-700 border border-orange-200">
+                          <CalendarClock className="w-3 h-3 text-orange-500" />
+                          <span>{leadPendingFollowUp.dueDate}</span>
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={(e) => { e.stopPropagation(); setFollowUpLead(lead); }}
+                          className="text-[10px] font-semibold text-orange-600 hover:text-orange-700 flex items-center gap-1 cursor-pointer"
+                        >
+                          <Plus className="w-3 h-3" />
+                          <span>Follow-up</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Actions Toolbar */}
+                  <div className="flex items-center justify-between pt-1" onClick={(e) => e.stopPropagation()}>
+                    <span className="text-[10px] text-slate-400">Tap card to view full timeline</span>
+
+                    <div className="flex items-center gap-1">
+                      <a 
+                        href={`tel:${lead.phone}`} 
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-orange-600 hover:bg-orange-50 transition-colors" 
+                        title="Call"
+                      >
+                        <Phone className="w-4 h-4" />
+                      </a>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setCallLogLead(lead); }} 
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 transition-colors" 
+                        title="Log Call"
+                      >
+                        <PhoneCall className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={(e) => { e.stopPropagation(); setFollowUpLead(lead); }} 
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-orange-600 hover:bg-orange-50 transition-colors" 
+                        title="Schedule"
+                      >
+                        <CalendarClock className="w-4 h-4" />
+                      </button>
+                      <button 
+                        onClick={(e) => handleOpenEdit(e, lead)} 
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors" 
+                        title="Edit"
+                      >
+                        <SlidersHorizontal className="w-4 h-4" />
+                      </button>
+                      {(currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') && (
+                        <button 
+                          onClick={(e) => handleDelete(e, lead.id)} 
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors" 
+                          title="Delete"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {filteredLeads.length === 0 && (
+              <div className="text-center py-10 px-4 text-slate-400 text-xs">
+                No matching leads found.
+              </div>
+            )}
+          </div>
+
+          {/* Desktop Table View (screens md and up) */}
+          <div className="hidden md:block overflow-x-auto">
             <table className="w-full border-collapse text-left">
               <thead>
                 <tr className="border-b border-slate-200 bg-slate-50 text-xs font-bold text-slate-500 uppercase tracking-wider">

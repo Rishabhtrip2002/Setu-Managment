@@ -393,11 +393,11 @@ const Telecaller = ({ addQuoteTrigger, addPaymentTrigger }) => {
         <div className="space-y-5">
           
           {/* Metrics Row */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
             {/* Due Today */}
             <div 
               onClick={() => setActiveQueueTab('due_today')}
-              className={`p-4 rounded-2xl border cursor-pointer transition-all hover-scale ${
+              className={`p-3 sm:p-4 rounded-2xl border cursor-pointer transition-all hover-scale ${
                 activeQueueTab === 'due_today'
                   ? 'bg-orange-50 border-orange-400 ring-2 ring-orange-400/30 shadow-sm'
                   : 'bg-white border-slate-200'
@@ -407,14 +407,14 @@ const Telecaller = ({ addQuoteTrigger, addPaymentTrigger }) => {
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Due Today</span>
                 <Clock className="w-4 h-4 text-orange-500" />
               </div>
-              <p className="text-2xl font-black text-slate-900 mt-2">{stats.dueTodayCount}</p>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1 sm:mt-2">{stats.dueTodayCount}</p>
               <span className="text-[10px] font-semibold text-orange-600 mt-0.5 block">Pending Follow-ups</span>
             </div>
 
             {/* Overdue */}
             <div 
               onClick={() => setActiveQueueTab('overdue')}
-              className={`p-4 rounded-2xl border cursor-pointer transition-all hover-scale ${
+              className={`p-3 sm:p-4 rounded-2xl border cursor-pointer transition-all hover-scale ${
                 activeQueueTab === 'overdue'
                   ? 'bg-rose-50 border-rose-400 ring-2 ring-rose-400/30 shadow-sm'
                   : 'bg-white border-slate-200'
@@ -424,14 +424,14 @@ const Telecaller = ({ addQuoteTrigger, addPaymentTrigger }) => {
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Overdue</span>
                 <AlertCircle className="w-4 h-4 text-rose-500" />
               </div>
-              <p className="text-2xl font-black text-rose-600 mt-2">{stats.overdueCount}</p>
+              <p className="text-xl sm:text-2xl font-black text-rose-600 mt-1 sm:mt-2">{stats.overdueCount}</p>
               <span className="text-[10px] font-semibold text-rose-600 mt-0.5 block">Needs Immediate Call</span>
             </div>
 
             {/* Calls Today */}
             <div 
               onClick={() => setActiveQueueTab('history')}
-              className={`p-4 rounded-2xl border cursor-pointer transition-all hover-scale ${
+              className={`p-3 sm:p-4 rounded-2xl border cursor-pointer transition-all hover-scale ${
                 activeQueueTab === 'history'
                   ? 'bg-blue-50 border-blue-400 ring-2 ring-blue-400/30 shadow-sm'
                   : 'bg-white border-slate-200'
@@ -441,14 +441,14 @@ const Telecaller = ({ addQuoteTrigger, addPaymentTrigger }) => {
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Calls Today</span>
                 <PhoneCall className="w-4 h-4 text-blue-500" />
               </div>
-              <p className="text-2xl font-black text-slate-900 mt-2">{stats.callsTodayCount}</p>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1 sm:mt-2">{stats.callsTodayCount}</p>
               <span className="text-[10px] font-semibold text-blue-600 mt-0.5 block">Attempts Logged</span>
             </div>
 
             {/* Total Assigned */}
             <div 
               onClick={() => setActiveQueueTab('all_assigned')}
-              className={`p-4 rounded-2xl border cursor-pointer transition-all hover-scale ${
+              className={`p-3 sm:p-4 rounded-2xl border cursor-pointer transition-all hover-scale ${
                 activeQueueTab === 'all_assigned'
                   ? 'bg-slate-100 border-slate-400 ring-2 ring-slate-400/30 shadow-sm'
                   : 'bg-white border-slate-200'
@@ -458,14 +458,14 @@ const Telecaller = ({ addQuoteTrigger, addPaymentTrigger }) => {
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Assigned Leads</span>
                 <Users className="w-4 h-4 text-slate-500" />
               </div>
-              <p className="text-2xl font-black text-slate-900 mt-2">{stats.totalAssigned}</p>
+              <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1 sm:mt-2">{stats.totalAssigned}</p>
               <span className="text-[10px] font-semibold text-slate-500 mt-0.5 block">In Your Pipeline</span>
             </div>
 
             {/* Converted */}
             <div 
               onClick={() => setActiveQueueTab('converted')}
-              className={`p-4 rounded-2xl border cursor-pointer transition-all hover-scale ${
+              className={`p-3 sm:p-4 rounded-2xl border cursor-pointer transition-all hover-scale ${
                 activeQueueTab === 'converted'
                   ? 'bg-purple-50 border-purple-400 ring-2 ring-purple-400/30 shadow-sm'
                   : 'bg-white border-slate-200'
@@ -475,7 +475,7 @@ const Telecaller = ({ addQuoteTrigger, addPaymentTrigger }) => {
                 <span className="text-[11px] font-bold text-slate-500 uppercase tracking-wide">Converted</span>
                 <Sparkles className="w-4 h-4 text-purple-600" />
               </div>
-              <p className="text-2xl font-black text-purple-700 mt-2">{stats.convertedCount}</p>
+              <p className="text-xl sm:text-2xl font-black text-purple-700 mt-1 sm:mt-2">{stats.convertedCount}</p>
               <span className="text-[10px] font-semibold text-purple-600 mt-0.5 block">Won / Closed Leads</span>
             </div>
           </div>
@@ -547,7 +547,7 @@ const Telecaller = ({ addQuoteTrigger, addPaymentTrigger }) => {
             </div>
 
             {/* Queue Mode Tabs */}
-            <div className="flex items-center gap-1.5 overflow-x-auto pt-2 border-t border-slate-100">
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar pt-2 border-t border-slate-100 pb-1">
               {[
                 { id: 'due_today', label: `Due Today (${stats.dueTodayCount})`, count: stats.dueTodayCount, color: 'text-orange-600' },
                 { id: 'overdue', label: `Overdue (${stats.overdueCount})`, count: stats.overdueCount, color: 'text-rose-600' },

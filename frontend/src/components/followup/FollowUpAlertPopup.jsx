@@ -18,6 +18,11 @@ import {
   ExternalLink
 } from 'lucide-react';
 import FollowUpModal from './FollowUpModal';
+import { 
+  checkAndNotifyDueFollowUps, 
+  playNotificationChime, 
+  getNotificationPermission 
+} from '../../services/notificationService';
 
 const FollowUpAlertPopup = ({ onOpenLeadDrawer }) => {
   const { 
@@ -43,6 +48,18 @@ const FollowUpAlertPopup = ({ onOpenLeadDrawer }) => {
     f.dueDate <= today && 
     !dismissedAlertIds.includes(f.id)
   );
+
+  // Trigger push notification and chime for due follow-ups / calls
+  React.useEffect(() => {
+    if (dueTasks.length > 0) {
+      checkAndNotifyDueFollowUps(dueTasks, today, (task) => {
+        if (onOpenLeadDrawer && task?.leadId) {
+          const lead = leads.find(l => l.id === task.leadId);
+          if (lead) onOpenLeadDrawer(lead);
+        }
+      });
+    }
+  }, [dueTasks.length, today]);
 
   if (dueTasks.length === 0) return null;
 

@@ -128,7 +128,7 @@ const SettingsPage = () => {
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-white border border-slate-200 rounded-2xl p-1.5 shadow-2xs gap-1.5 overflow-x-auto">
+      <div className="flex bg-white border border-slate-200 rounded-2xl p-1.5 shadow-2xs gap-1.5 overflow-x-auto no-scrollbar">
         {[
           { id: 'templates', label: 'WhatsApp Templates', icon: MessageSquare },
           { id: 'reminders', label: 'Reminders Scheduler Log', icon: BellRing },
@@ -231,7 +231,72 @@ const SettingsPage = () => {
             </div>
 
             <div className="overflow-hidden border border-slate-200 rounded-2xl shadow-2xs">
-              <div className="overflow-x-auto">
+              {/* Mobile Card View (phones below md) */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {reminders.map(rem => (
+                  <div key={rem.id} className="p-4 space-y-2.5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">{rem.clientName}</h4>
+                        <p className="text-xs text-slate-500 font-mono mt-0.5">{rem.phone}</p>
+                      </div>
+                      <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold ${getReminderBadge(rem.status)}`}>
+                        {getReminderIcon(rem.status)}
+                        <span>{rem.status}</span>
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                      <div>
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Split Amount</span>
+                        <span className="font-black text-orange-600 font-mono">
+                          {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(rem.amount)}
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Due Date</span>
+                        <span className="font-medium text-slate-700">{rem.dueDate}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1">
+                      <div className="text-[11px] text-slate-500">
+                        <span className="capitalize font-semibold text-slate-700">{rem.triggerType.replace('_', ' ')}</span>
+                        {rem.sentDate && <span className="text-slate-400 ml-1">({rem.sentDate})</span>}
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        {rem.status !== 'Sent' && (
+                          <button
+                            onClick={() => handleSendReminderImmediately(rem.id)}
+                            className="px-3 py-1.5 text-xs font-bold uppercase bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white rounded-xl flex items-center gap-1 shadow-2xs"
+                          >
+                            <Send className="w-3 h-3" />
+                            <span>Remind</span>
+                          </button>
+                        )}
+                        {(currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') && (
+                          <button
+                            onClick={() => handleRemoveReminder(rem.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"
+                          >
+                            <XOctagon className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+
+                {reminders.length === 0 && (
+                  <div className="text-center py-10 px-4 text-slate-500 font-medium text-xs">
+                    No auto-scheduled payment reminders in log.
+                  </div>
+                )}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[11px]">
@@ -316,7 +381,57 @@ const SettingsPage = () => {
             </div>
 
             <div className="overflow-hidden border border-slate-200 rounded-2xl shadow-2xs">
-              <div className="overflow-x-auto">
+              {/* Mobile Card View (phones below md) */}
+              <div className="md:hidden divide-y divide-slate-100">
+                {overdueClients.map(c => (
+                  <div key={c.clientId} className="p-4 space-y-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div>
+                        <h4 className="font-bold text-slate-900 text-sm">{c.name}</h4>
+                        <p className="text-xs text-slate-500 mt-0.5">{c.companyName}</p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase block">Overdue</span>
+                        <span className="font-black text-rose-600 font-mono text-sm">
+                          {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(c.totalOverdue)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between text-xs bg-rose-50/60 p-2.5 rounded-xl border border-rose-100">
+                      <div>
+                        <span className="text-[10px] text-rose-500 font-bold uppercase block">Oldest Due</span>
+                        <span className="font-semibold text-slate-800">{c.oldestDueDate}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Parts</span>
+                        <span className="font-medium text-slate-700">{c.instalmentsCount} unpaid splits</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-end pt-1">
+                      <button
+                        onClick={() => {
+                          alert(`Urgent collection alert dispatched via WhatsApp to ${c.name} (${c.phone}). Log updated.`);
+                        }}
+                        className="w-full sm:w-auto px-4 py-2 text-xs font-bold uppercase bg-rose-500 hover:bg-rose-600 text-white rounded-xl hover-scale transition-colors shadow-2xs cursor-pointer flex items-center justify-center gap-1.5"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Collect Now via WhatsApp</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+
+                {overdueClients.length === 0 && (
+                  <div className="text-center py-10 px-4 text-emerald-700 bg-emerald-50/40 font-bold text-xs">
+                    Excellent! All invoices are fully paid or ahead of schedule. Zero overdue balances.
+                  </div>
+                )}
+              </div>
+
+              {/* Desktop Table View */}
+              <div className="hidden md:block overflow-x-auto">
                 <table className="w-full text-left border-collapse text-xs">
                   <thead>
                     <tr className="border-b border-slate-200 bg-slate-50/80 text-slate-500 font-bold uppercase tracking-wider text-[11px]">

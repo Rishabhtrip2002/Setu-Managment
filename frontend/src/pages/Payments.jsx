@@ -201,12 +201,12 @@ const Payments = ({ initialOpenForm = false, preselectedClientId = '' }) => {
           return (
             <div 
               key={p.id}
-              className="p-6 bg-white border border-slate-200 hover:border-orange-300 rounded-2xl shadow-xs transition-all"
+              className="p-4 sm:p-6 bg-white border border-slate-200 hover:border-orange-300 rounded-2xl shadow-xs transition-all"
             >
               {/* Header Title info */}
-              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4 gap-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
                 <div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     <h4 className="text-sm font-extrabold text-slate-900">{clientName}</h4>
                     <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
                       p.status === 'Paid in Full' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
@@ -216,12 +216,12 @@ const Payments = ({ initialOpenForm = false, preselectedClientId = '' }) => {
                       {p.status}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 mt-1 font-medium">
+                  <p className="text-[11px] sm:text-xs text-slate-500 mt-1 font-medium break-all sm:break-normal">
                     Schedule ID: <span className="font-mono font-bold text-slate-700">{p.id}</span> | Linked Quote: <span className="font-mono text-orange-600 font-bold">{p.quotationId}</span> - {quoteTitle}
                   </p>
                 </div>
 
-                <div className="flex items-center gap-3">
+                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                   <button
                     onClick={() => handleOpenInvoicePDF(p)}
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-all hover-scale cursor-pointer"

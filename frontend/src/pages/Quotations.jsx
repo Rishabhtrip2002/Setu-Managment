@@ -200,10 +200,10 @@ const Quotations = ({ initialOpenForm = false, prefilledId = '', prefilledType =
         </div>
 
         {/* Action buttons */}
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 sm:gap-2.5 flex-wrap sm:flex-nowrap w-full sm:w-auto">
           <button
             onClick={() => handleOpenFormNew('Quotation')}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-xl transition-all hover-scale cursor-pointer"
+            className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-orange-700 bg-orange-50 hover:bg-orange-100 border border-orange-200 rounded-xl transition-all hover-scale cursor-pointer"
           >
             <FilePlus className="w-3.5 h-3.5 text-orange-600" />
             <span>New Quotation</span>
@@ -211,7 +211,7 @@ const Quotations = ({ initialOpenForm = false, prefilledId = '', prefilledType =
 
           <button
             onClick={() => handleOpenFormNew('Invoice')}
-            className="flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale shadow-xs cursor-pointer"
+            className="flex-1 sm:flex-initial justify-center flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale shadow-xs cursor-pointer"
           >
             <Receipt className="w-3.5 h-3.5" />
             <span>New Invoice (Bill)</span>
@@ -327,7 +327,7 @@ const Quotations = ({ initialOpenForm = false, prefilledId = '', prefilledType =
               </div>
 
               {/* Footer and controls */}
-              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between">
+              <div className="mt-5 pt-3.5 border-t border-slate-100 flex items-center justify-between gap-3 flex-wrap">
                 <div>
                   <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Price</p>
                   <p className="text-base font-black text-slate-900 mt-0.5">
@@ -335,7 +335,7 @@ const Quotations = ({ initialOpenForm = false, prefilledId = '', prefilledType =
                   </p>
                 </div>
 
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1.5 flex-wrap">
                   <button
                     onClick={() => handleOpenPDF(q)}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-700 hover:text-slate-900 text-xs font-bold hover-scale cursor-pointer"

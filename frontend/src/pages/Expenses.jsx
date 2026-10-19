@@ -364,102 +364,27 @@ const Expenses = () => {
             </button>
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  <th className="py-3.5 px-4">Expense / ID</th>
-                  <th className="py-3.5 px-4">Category</th>
-                  <th className="py-3.5 px-4">Allocation</th>
-                  <th className="py-3.5 px-4">Logged By</th>
-                  <th className="py-3.5 px-4">Date</th>
-                  <th className="py-3.5 px-4 text-right">Amount (₹)</th>
-                  <th className="py-3.5 px-4 text-center">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 text-xs">
-                {filteredExpenses.map(exp => {
-                  const CatMeta = CATEGORY_META[exp.category] || CATEGORY_META.Other;
-                  const CatIcon = CatMeta.icon;
+          <>
+            {/* Mobile Card List View (phones below md) */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {filteredExpenses.map(exp => {
+                const CatMeta = CATEGORY_META[exp.category] || CATEGORY_META.Other;
+                const CatIcon = CatMeta.icon;
 
-                  return (
-                    <tr 
-                      key={exp.id} 
-                      onClick={() => handleOpenDetails(exp)}
-                      className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
-                    >
-                      {/* Title & ID */}
-                      <td className="py-3.5 px-4">
-                        <div className="font-bold text-slate-900 group-hover:text-orange-600 transition-colors truncate max-w-[200px]">
-                          {exp.title}
-                        </div>
-                        <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2 mt-0.5">
-                          <span>{exp.id}</span>
-                          {exp.receiptNo && (
-                            <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
-                              Ref: {exp.receiptNo}
-                            </span>
-                          )}
-                        </div>
-                      </td>
+                return (
+                  <div
+                    key={exp.id}
+                    onClick={() => handleOpenDetails(exp)}
+                    className="p-4 space-y-3 cursor-pointer hover:bg-slate-50/60 transition-colors"
+                  >
+                    {/* Top Row: Category + Status */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border bg-slate-50 border-slate-200 text-slate-700">
+                        <CatIcon className="w-3.5 h-3.5 text-orange-500" />
+                        <span>{exp.category}</span>
+                      </div>
 
-                      {/* Category */}
-                      <td className="py-3.5 px-4">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border bg-slate-50 border-slate-200 text-slate-700">
-                          <CatIcon className="w-3.5 h-3.5 text-orange-500" />
-                          <span>{exp.category}</span>
-                        </div>
-                      </td>
-
-                      {/* Allocation */}
-                      <td className="py-3.5 px-4">
-                        {exp.expenseType === 'client' ? (
-                          <div className="flex items-center gap-1.5 text-slate-800 font-medium">
-                            <Building2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />
-                            <span className="truncate max-w-[130px] font-semibold text-orange-700" title={exp.clientName}>
-                              {exp.clientName || 'Assigned Client'}
-                            </span>
-                          </div>
-                        ) : (
-                          <span className="text-slate-500 text-[11px] font-medium">
-                            Daily / General
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Logged By (User + Designation) */}
-                      <td className="py-3.5 px-4">
-                        <div>
-                          <div className="font-bold text-slate-900 flex items-center gap-1.5 truncate max-w-[150px]">
-                            <User className="w-3 h-3 text-slate-400 shrink-0" />
-                            <span>{exp.createdBy?.name || 'Staff Member'}</span>
-                          </div>
-                          <div className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[150px]">
-                            <span className="font-medium text-orange-600">
-                              {exp.createdBy?.position || exp.createdBy?.role || 'Staff'}
-                            </span>
-                            {exp.createdBy?.department && (
-                              <span> • {exp.createdBy.department}</span>
-                            )}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Date */}
-                      <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
-                        {formatDateDMY ? formatDateDMY(exp.date) : exp.date}
-                      </td>
-
-                      {/* Amount */}
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="font-extrabold text-slate-900 text-sm">
-                          ₹{Number(exp.amount).toLocaleString('en-IN')}
-                        </div>
-                      </td>
-
-                      {/* Status */}
-                      <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                      <div>
                         {exp.status === 'Approved' && (
                           <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                             <CheckCircle2 className="w-3 h-3 text-emerald-600" />
@@ -478,39 +403,235 @@ const Expenses = () => {
                             <span>Rejected</span>
                           </span>
                         )}
-                      </td>
+                      </div>
+                    </div>
 
-                      {/* Actions */}
-                      <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center justify-end gap-1.5">
-                          {exp.status === 'Pending' && isAdmin && (
+                    {/* Middle: Title & Amount */}
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <h4 className="font-bold text-slate-900 text-sm leading-snug">
+                          {exp.title}
+                        </h4>
+                        <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2 mt-0.5">
+                          <span>{exp.id}</span>
+                          {exp.receiptNo && (
+                            <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600 font-sans">
+                              Ref: {exp.receiptNo}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <span className="text-base font-black text-slate-900 font-mono block">
+                          ₹{Number(exp.amount).toLocaleString('en-IN')}
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          {formatDateDMY ? formatDateDMY(exp.date) : exp.date}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Details Box: Logged by & Allocation */}
+                    <div className="flex items-center justify-between text-xs text-slate-600 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                      <div className="truncate max-w-[150px]">
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Logged By</span>
+                        <span className="font-semibold text-slate-800 truncate block">
+                          {exp.createdBy?.name || 'Staff Member'}
+                        </span>
+                        <span className="text-[10px] text-orange-600 truncate block">
+                          {exp.createdBy?.position || exp.createdBy?.role || 'Staff'}
+                        </span>
+                      </div>
+
+                      <div className="text-right truncate max-w-[140px]">
+                        <span className="text-[10px] text-slate-400 uppercase font-semibold block">Allocation</span>
+                        {exp.expenseType === 'client' ? (
+                          <span className="font-bold text-orange-700 truncate block" title={exp.clientName}>
+                            {exp.clientName || 'Assigned Client'}
+                          </span>
+                        ) : (
+                          <span className="font-medium text-slate-500 block">Daily / General</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions Toolbar */}
+                    <div className="flex items-center justify-end gap-2 pt-1" onClick={(e) => e.stopPropagation()}>
+                      {exp.status === 'Pending' && isAdmin && (
+                        <button
+                          type="button"
+                          onClick={(e) => handleQuickApprove(e, exp.id)}
+                          className="flex-1 sm:flex-initial px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-xs flex items-center justify-center gap-1 transition-all"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>Approve Expense</span>
+                        </button>
+                      )}
+
+                      <button
+                        type="button"
+                        onClick={() => handleOpenDetails(exp)}
+                        className="px-3.5 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-xs flex items-center gap-1 transition-colors"
+                      >
+                        <Eye className="w-3.5 h-3.5 text-slate-500" />
+                        <span>View Details</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View (screens md and up) */}
+            <div className="hidden md:block overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50 border-b border-slate-200 text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <th className="py-3.5 px-4">Expense / ID</th>
+                    <th className="py-3.5 px-4">Category</th>
+                    <th className="py-3.5 px-4">Allocation</th>
+                    <th className="py-3.5 px-4">Logged By</th>
+                    <th className="py-3.5 px-4">Date</th>
+                    <th className="py-3.5 px-4 text-right">Amount (₹)</th>
+                    <th className="py-3.5 px-4 text-center">Status</th>
+                    <th className="py-3.5 px-4 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100 text-xs">
+                  {filteredExpenses.map(exp => {
+                    const CatMeta = CATEGORY_META[exp.category] || CATEGORY_META.Other;
+                    const CatIcon = CatMeta.icon;
+
+                    return (
+                      <tr 
+                        key={exp.id} 
+                        onClick={() => handleOpenDetails(exp)}
+                        className="hover:bg-slate-50/80 transition-colors cursor-pointer group"
+                      >
+                        {/* Title & ID */}
+                        <td className="py-3.5 px-4">
+                          <div className="font-bold text-slate-900 group-hover:text-orange-600 transition-colors truncate max-w-[200px]">
+                            {exp.title}
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono flex items-center gap-2 mt-0.5">
+                            <span>{exp.id}</span>
+                            {exp.receiptNo && (
+                              <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-600">
+                                Ref: {exp.receiptNo}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+
+                        {/* Category */}
+                        <td className="py-3.5 px-4">
+                          <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold border bg-slate-50 border-slate-200 text-slate-700">
+                            <CatIcon className="w-3.5 h-3.5 text-orange-500" />
+                            <span>{exp.category}</span>
+                          </div>
+                        </td>
+
+                        {/* Allocation */}
+                        <td className="py-3.5 px-4">
+                          {exp.expenseType === 'client' ? (
+                            <div className="flex items-center gap-1.5 text-slate-800 font-medium">
+                              <Building2 className="w-3.5 h-3.5 text-orange-500 shrink-0" />
+                              <span className="truncate max-w-[130px] font-semibold text-orange-700" title={exp.clientName}>
+                                {exp.clientName || 'Assigned Client'}
+                              </span>
+                            </div>
+                          ) : (
+                            <span className="text-slate-500 text-[11px] font-medium">
+                              Daily / General
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Logged By (User + Designation) */}
+                        <td className="py-3.5 px-4">
+                          <div>
+                            <div className="font-bold text-slate-900 flex items-center gap-1.5 truncate max-w-[150px]">
+                              <User className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>{exp.createdBy?.name || 'Staff Member'}</span>
+                            </div>
+                            <div className="text-[10px] text-slate-500 mt-0.5 truncate max-w-[150px]">
+                              <span className="font-medium text-orange-600">
+                                {exp.createdBy?.position || exp.createdBy?.role || 'Staff'}
+                              </span>
+                              {exp.createdBy?.department && (
+                                <span> • {exp.createdBy.department}</span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        {/* Date */}
+                        <td className="py-3.5 px-4 text-slate-600 whitespace-nowrap">
+                          {formatDateDMY ? formatDateDMY(exp.date) : exp.date}
+                        </td>
+
+                        {/* Amount */}
+                        <td className="py-3.5 px-4 text-right">
+                          <div className="font-extrabold text-slate-900 text-sm">
+                            ₹{Number(exp.amount).toLocaleString('en-IN')}
+                          </div>
+                        </td>
+
+                        {/* Status */}
+                        <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                          {exp.status === 'Approved' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                              <span>Approved</span>
+                            </span>
+                          )}
+                          {exp.status === 'Pending' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-50 text-amber-700 border border-amber-200 animate-pulse">
+                              <Clock className="w-3 h-3 text-amber-600" />
+                              <span>Pending</span>
+                            </span>
+                          )}
+                          {exp.status === 'Rejected' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                              <XCircle className="w-3 h-3 text-rose-600" />
+                              <span>Rejected</span>
+                            </span>
+                          )}
+                        </td>
+
+                        {/* Actions */}
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-end gap-1.5">
+                            {exp.status === 'Pending' && isAdmin && (
+                              <button
+                                type="button"
+                                onClick={(e) => handleQuickApprove(e, exp.id)}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-[11px] flex items-center gap-1 transition-all"
+                                title="One-click Approve"
+                              >
+                                <Check className="w-3 h-3" />
+                                <span>Approve</span>
+                              </button>
+                            )}
+
                             <button
                               type="button"
-                              onClick={(e) => handleQuickApprove(e, exp.id)}
-                              className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-bold text-[11px] flex items-center gap-1 transition-all"
-                              title="One-click Approve"
+                              onClick={() => handleOpenDetails(exp)}
+                              className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
+                              title="View Full Details"
                             >
-                              <Check className="w-3 h-3" />
-                              <span>Approve</span>
+                              <Eye className="w-4 h-4" />
                             </button>
-                          )}
-
-                          <button
-                            type="button"
-                            onClick={() => handleOpenDetails(exp)}
-                            className="p-1.5 rounded-lg text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors"
-                            title="View Full Details"
-                          >
-                            <Eye className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
 
       </div>

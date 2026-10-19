@@ -229,7 +229,102 @@ const Employees = () => {
             )}
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <>
+            {/* Mobile Card View (shown below md) */}
+            <div className="md:hidden divide-y divide-slate-100">
+              {filteredEmployees.map((emp) => {
+                const isPending = emp.status === 'Pending Password Setup';
+                const isInactive = emp.status === 'Inactive';
+                return (
+                  <div 
+                    key={emp.id} 
+                    className={`p-4 space-y-3 ${isInactive ? 'opacity-70 bg-slate-50/40' : ''}`}
+                  >
+                    {/* Top Row: Avatar + Info */}
+                    <div className="flex items-start gap-3">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-orange-400 to-amber-500 text-white font-extrabold text-sm flex items-center justify-center shrink-0 shadow-xs">
+                        {emp.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-slate-900 text-sm">{emp.name}</span>
+                          <span className="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-slate-100 text-slate-600 border border-slate-200">
+                            {emp.id}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-slate-500 mt-0.5 truncate">{emp.email}</p>
+                        {emp.phone && <p className="text-[11px] text-slate-500">{emp.phone}</p>}
+                      </div>
+                    </div>
+
+                    {/* Mid Row: Position + Role + Status */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-[11px] font-semibold text-slate-700">{emp.position}</span>
+                      <span className="text-[10px] text-slate-400">•</span>
+                      <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                        <Building2 className="w-3 h-3 text-slate-400" />
+                        {emp.department}
+                      </span>
+                      <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                        emp.role === 'Admin' 
+                          ? 'bg-orange-50 text-orange-700 border border-orange-200' 
+                          : emp.role === 'Manager'
+                          ? 'bg-indigo-50 text-indigo-700 border border-indigo-200'
+                          : 'bg-slate-100 text-slate-700 border border-slate-200'
+                      }`}>
+                        {emp.role}
+                      </span>
+                      {getStatusBadge(emp.status)}
+                    </div>
+
+                    {/* Bottom Row: Actions */}
+                    <div className="flex items-center gap-1.5 pt-1">
+                      {isPending && (
+                        <button
+                          onClick={() => handleCopySetupInvite(emp)}
+                          className={`p-1.5 rounded-lg border text-xs font-semibold transition-all ${
+                            copiedId === emp.id 
+                              ? 'bg-emerald-50 text-emerald-600 border-emerald-300' 
+                              : 'bg-amber-50 hover:bg-amber-100 text-amber-700 border-amber-200'
+                          }`}
+                          title="Copy setup instructions"
+                        >
+                          {copiedId === emp.id ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => toggleEmployeeStatus(emp.id)}
+                        className={`p-1.5 rounded-lg border transition-all ${
+                          emp.status === 'Active'
+                            ? 'bg-slate-50 hover:bg-rose-50 text-slate-500 hover:text-rose-600 border-slate-200'
+                            : 'bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border-emerald-200'
+                        }`}
+                        title={emp.status === 'Active' ? 'Deactivate' : 'Reactivate'}
+                      >
+                        {emp.status === 'Active' ? <Ban className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />}
+                      </button>
+                      <button
+                        onClick={() => handleOpenEdit(emp)}
+                        className="p-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 transition-colors"
+                        title="Edit"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDelete(emp)}
+                        className="p-1.5 rounded-lg border border-slate-200 bg-slate-50 hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition-colors"
+                        title="Delete"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Desktop Table View (hidden below md) */}
+            <div className="hidden md:block overflow-x-auto">
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-50 border-b border-slate-200/80 text-[11px] font-bold text-slate-500 uppercase tracking-wider">
                 <tr>
@@ -393,6 +488,7 @@ const Employees = () => {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
 

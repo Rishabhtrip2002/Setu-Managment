@@ -116,7 +116,7 @@ const Dashboard = ({ setActivePage, onQuickAction }) => {
     <div className="space-y-6">
       
       {/* Welcome banner header */}
-      <div className="p-6 bg-gradient-to-r from-orange-50 via-white to-amber-50 border border-orange-200/90 rounded-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-4 shadow-sm">
+      <div className="p-4 sm:p-6 bg-gradient-to-r from-orange-50 via-white to-amber-50 border border-orange-200/90 rounded-2xl flex flex-col md:flex-row md:items-center md:justify-between gap-3 sm:gap-4 shadow-sm">
         <div>
           <h2 className="text-lg font-extrabold text-slate-900">
             Welcome back, {currentUser?.name || 'Administrator'}!
@@ -124,38 +124,38 @@ const Dashboard = ({ setActivePage, onQuickAction }) => {
           <p className="text-xs text-slate-600 mt-1">Here is what is happening at SETU SOLUTION CRM today. All notifications are active.</p>
         </div>
 
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-1.5 sm:gap-2">
           <button
             onClick={() => setActivePage('telecaller')}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale shadow-md shadow-orange-500/20"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale shadow-md shadow-orange-500/20"
           >
             <PhoneCall className="w-3.5 h-3.5" />
             <span>Telecaller {pendingFollowupsToday > 0 ? `(${pendingFollowupsToday} Due)` : ''}</span>
           </button>
           <button
             onClick={() => setActivePage('coldcalling')}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl hover-scale shadow-xs"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl hover-scale shadow-xs"
           >
             <PhoneForwarded className="w-3.5 h-3.5 text-orange-500" />
             <span>Cold Calling {unassignedColdCount > 0 ? `(${unassignedColdCount} Pool)` : ''}</span>
           </button>
           <button
             onClick={() => onQuickAction('add_lead')}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl hover-scale shadow-xs"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl hover-scale shadow-xs"
           >
             <Plus className="w-3.5 h-3.5 text-slate-500" />
             <span>Add Lead</span>
           </button>
           <button
             onClick={() => onQuickAction('add_quote')}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl hover-scale shadow-xs"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl hover-scale shadow-xs"
           >
             <Plus className="w-3.5 h-3.5 text-slate-500" />
             <span>Draft Quote</span>
           </button>
           <button
             onClick={() => setActivePage('expenses')}
-            className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl hover-scale shadow-xs"
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-[11px] sm:text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 rounded-xl hover-scale shadow-xs"
           >
             <Receipt className="w-3.5 h-3.5 text-orange-500" />
             <span>Expenses</span>
@@ -262,7 +262,7 @@ const Dashboard = ({ setActivePage, onQuickAction }) => {
             {overdueItems.map((item, idx) => (
               <div 
                 key={idx} 
-                className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-all flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3"
+                className="p-3 sm:p-3.5 bg-slate-50 border border-slate-200 rounded-xl hover:border-slate-300 transition-all flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between sm:gap-3"
               >
                 <div>
                   <h4 className="text-xs font-bold text-slate-900">{item.clientName}</h4>
