@@ -10,18 +10,16 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
   const docTitle = isInvoice ? 'INVOICE' : 'QUOTATION';
   const displayDocId = normalizeDocumentId(quotation.id || quotation.docNumber, quotation.date);
 
-  // Client Details resolution
   const clientName = quotation.clientName || clientOrLead?.companyName || clientOrLead?.name || 'Valued Client';
   const clientAddress = quotation.address || clientOrLead?.address || '';
   const clientEmail = quotation.email || clientOrLead?.email || '';
   const clientPhone = quotation.phone || clientOrLead?.phone || '';
   const docDate = formatDateDMY(quotation.date) || formatDateDMY(new Date().toISOString().split('T')[0]);
 
-  // Calculations & Pricing
   const totalAmount = Number(quotation.total) || (quotation.items ? quotation.items.reduce((s, i) => s + (Number(i.rate) * Number(i.qty || 1)), 0) : 0);
   const originalTotal = Number(quotation.originalTotal) || totalAmount;
   const hasDiscount = Boolean(quotation.discountPrice && Number(quotation.discountPrice) < originalTotal);
-  
+
   const advancePaid = quotation.advancePaid !== undefined ? Number(quotation.advancePaid) : 0;
   const remaining = quotation.remaining !== undefined ? Number(quotation.remaining) : (totalAmount - advancePaid);
 
@@ -32,6 +30,180 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
     return new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(Number(val) || 0);
   };
 
+  const printStyles = `
+    @page {
+      size: A4 portrait;
+      margin: 8mm;
+    }
+    * {
+      box-sizing: border-box;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    html, body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #fff;
+      color: #0f172a;
+      margin: 0;
+      padding: 0;
+      font-size: 10px;
+      line-height: 1.4;
+    }
+    .print-container {
+      width: 100%;
+      margin: 0 auto;
+    }
+    .letterhead-frame {
+      position: relative;
+      border: 1.5px solid #1e293b;
+      padding: 18px 22px 14px;
+      width: 100%;
+      height: 277mm;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      background: #fff;
+      page-break-inside: avoid;
+    }
+    .watermark-layer {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 320px;
+      max-width: 55%;
+      opacity: 0.07;
+      pointer-events: none;
+      z-index: 0;
+      user-select: none;
+    }
+    .watermark-layer img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+    .letterhead-body {
+      position: relative;
+      z-index: 1;
+      flex: 1;
+    }
+    .print-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
+      border-bottom: 1.5px solid #e2e8f0;
+    }
+    .print-logo {
+      width: 60px;
+      height: 60px;
+      object-fit: contain;
+      display: block;
+    }
+    .print-doc-title {
+      font-size: 22px;
+      font-weight: 900;
+      color: #0f172a;
+      margin: 0;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    .print-doc-id {
+      font-size: 11px;
+      font-weight: 700;
+      color: #475569;
+      margin: 3px 0 0 0;
+      font-family: monospace;
+    }
+    .meta-grid {
+      display: flex;
+      gap: 0;
+      margin-bottom: 10px;
+    }
+    .meta-from, .meta-to {
+      font-size: 10px;
+      line-height: 1.5;
+      color: #0f172a;
+    }
+    .meta-from {
+      flex: 1;
+      padding-right: 16px;
+      border-right: 1px solid #e2e8f0;
+    }
+    .meta-to {
+      flex: 1;
+      padding-left: 16px;
+    }
+    .meta-label {
+      font-size: 9px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: #64748b;
+      margin: 0 0 3px 0;
+    }
+    .meta-from p, .meta-to p {
+      margin: 1.5px 0;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 0 0 10px 0;
+      font-size: 10px;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 5px 9px;
+      text-align: left;
+    }
+    th {
+      background-color: #f1f5f9;
+      font-weight: 700;
+      color: #0f172a;
+      font-size: 10px;
+    }
+    .total-row td {
+      font-weight: 700;
+      background-color: #fafaf9;
+    }
+    .section-heading {
+      font-size: 10.5px;
+      font-weight: 700;
+      color: #0f172a;
+      margin: 8px 0 3px 0;
+      padding-bottom: 2px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    .bullet-list {
+      margin: 0;
+      padding-left: 16px;
+      font-size: 9px;
+      line-height: 1.4;
+      color: #334155;
+    }
+    .bullet-list li {
+      margin-bottom: 2.5px;
+    }
+    .bullet-list li strong {
+      color: #0f172a;
+    }
+    .print-footer {
+      position: relative;
+      z-index: 1;
+      margin-top: auto;
+      padding-top: 8px;
+      border-top: 1px solid #cbd5e1;
+    }
+    .print-footer p {
+      font-size: 8.5px;
+      color: #64748b;
+      margin: 0;
+      line-height: 1.4;
+      text-align: center;
+    }
+  `;
+
   const handlePrint = () => {
     const printArea = document.getElementById('quotation-print-area');
     if (!printArea) return;
@@ -40,191 +212,77 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
     let printHtml = printArea.innerHTML;
     printHtml = printHtml.replaceAll('src="/SETULOGO.png"', `src="${logoOriginUrl}"`);
     printHtml = printHtml.replaceAll('src="/src/assets/SETULOGO.png"', `src="${logoOriginUrl}"`);
+    printHtml = printHtml.replaceAll('src="/SETULOGO_WHITE.png"', `src="${logoOriginUrl}"`);
 
     const printWindow = window.open('', '_blank', 'width=920,height=1050');
     if (!printWindow) {
       alert('Popup blocked! Please allow popups for this site to print.');
       return;
     }
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <title>${docTitle}_${displayDocId}</title>
-          <style>
-            @page {
-              size: A4 portrait;
-              margin: 7mm 10mm 7mm 10mm;
-            }
-            * {
-              box-sizing: border-box;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-            html, body {
-              font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-              background-color: #ffffff;
-              color: #0f172a;
-              margin: 0;
-              padding: 0;
-              font-size: 10.5px;
-              line-height: 1.35;
-            }
-            .print-container {
-              width: 100%;
-              max-width: 100%;
-              margin: 0 auto;
-              background: #fff;
-            }
-            .letterhead-frame {
-              position: relative !important;
-              border: 1.5px solid #000000 !important;
-              padding: 16px 20px !important;
-              width: 100% !important;
-              box-sizing: border-box !important;
-              min-height: 275mm !important;
-              max-height: 278mm !important;
-              display: flex !important;
-              flex-direction: column !important;
-              justify-content: space-between !important;
-              page-break-inside: avoid !important;
-              page-break-after: avoid !important;
-              overflow: hidden !important;
-              background: #ffffff !important;
-            }
-            .watermark-layer {
-              position: absolute !important;
-              top: 50% !important;
-              left: 50% !important;
-              transform: translate(-50%, -50%) !important;
-              width: 380px !important;
-              max-width: 65% !important;
-              opacity: 0.085 !important;
-              pointer-events: none !important;
-              z-index: 0 !important;
-              user-select: none !important;
-            }
-            .watermark-layer img {
-              width: 100% !important;
-              height: auto !important;
-              display: block !important;
-              -webkit-print-color-adjust: exact !important;
-              print-color-adjust: exact !important;
-            }
-            .letterhead-body {
-              position: relative !important;
-              z-index: 1 !important;
-            }
-            .print-header {
-              display: flex !important;
-              justify-content: space-between !important;
-              align-items: flex-start !important;
-              width: 100% !important;
-              margin-bottom: 6px !important;
-            }
-            .print-logo {
-              width: 68px !important;
-              height: 68px !important;
-              max-width: 68px !important;
-              max-height: 68px !important;
-              object-fit: contain !important;
-              display: block !important;
-            }
-            .print-doc-title {
-              font-size: 20px !important;
-              font-weight: 900 !important;
-              color: #000000 !important;
-              margin: 0 !important;
-              text-transform: uppercase !important;
-              letter-spacing: 0.5px !important;
-            }
-            .print-doc-id {
-              font-size: 11.5px !important;
-              font-weight: 700 !important;
-              color: #1e293b !important;
-              margin: 2px 0 0 0 !important;
-              font-family: monospace !important;
-            }
-            .meta-block {
-              font-size: 10.5px !important;
-              line-height: 1.38 !important;
-              color: #0f172a !important;
-              margin-top: 6px !important;
-            }
-            .meta-block p {
-              margin: 1.5px 0 !important;
-            }
-            table {
-              width: 100% !important;
-              border-collapse: collapse !important;
-              margin: 6px 0 8px 0 !important;
-              font-size: 10.5px !important;
-            }
-            th, td {
-              border: 1px solid #cbd5e1 !important;
-              padding: 4.5px 8px !important;
-              text-align: left !important;
-            }
-            th {
-              background-color: #f1f5f9 !important;
-              font-weight: 700 !important;
-              color: #0f172a !important;
-            }
-            .section-heading {
-              font-size: 11px !important;
-              font-weight: 700 !important;
-              color: #000000 !important;
-              margin: 5px 0 2px 0 !important;
-            }
-            .bullet-list {
-              margin: 0 !important;
-              padding-left: 17px !important;
-              font-size: 9.5px !important;
-              line-height: 1.32 !important;
-              color: #1e293b !important;
-            }
-            .bullet-list li {
-              margin-bottom: 2px !important;
-            }
-            .page-break-avoid {
-              page-break-inside: avoid !important;
-              break-inside: avoid !important;
-            }
-            .print-footer {
-              margin-top: 6px !important;
-              font-size: 9px !important;
-              color: #475569 !important;
-              line-height: 1.3 !important;
-            }
-            .divider-thin {
-              border: none !important;
-              border-top: 1px solid #cbd5e1 !important;
-              margin: 5px 0 3px 0 !important;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="print-container">
-            ${printHtml}
-          </div>
-          <script>
-            window.onload = function() {
-              setTimeout(function() {
-                window.focus();
-                window.print();
-              }, 400);
-            }
-          </script>
-        </body>
-      </html>
-    `);
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>${docTitle}_${displayDocId}</title><style>${printStyles}</style></head><body><div class="print-container">${printHtml}</div><script>window.onload=function(){setTimeout(function(){window.focus();window.print();},400)}<\/script></body></html>`);
     printWindow.document.close();
+  };
+
+  /* Inline styles mirror the print stylesheet so the preview matches the PDF */
+  const S = {
+    frame: {
+      position: 'relative',
+      border: '1.5px solid #1e293b',
+      padding: '18px 22px 14px',
+      width: '100%',
+      boxSizing: 'border-box',
+      minHeight: '1070px',
+      display: 'flex',
+      flexDirection: 'column',
+      overflow: 'hidden',
+      backgroundColor: '#ffffff'
+    },
+    watermark: {
+      position: 'absolute',
+      top: '50%',
+      left: '50%',
+      transform: 'translate(-50%, -50%)',
+      width: '320px',
+      maxWidth: '55%',
+      opacity: 0.07,
+      pointerEvents: 'none',
+      zIndex: 0,
+      userSelect: 'none'
+    },
+    body: { position: 'relative', zIndex: 1, flex: 1 },
+    header: {
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: '10px',
+      paddingBottom: '8px',
+      borderBottom: '1.5px solid #e2e8f0'
+    },
+    logo: { width: '60px', height: '60px', objectFit: 'contain', display: 'block' },
+    title: { fontSize: '22px', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '1px', color: '#0f172a' },
+    docId: { fontSize: '11px', fontWeight: 700, margin: '3px 0 0 0', fontFamily: 'monospace', color: '#475569' },
+    metaGrid: { display: 'flex', gap: 0, marginBottom: '10px' },
+    metaFrom: { flex: 1, paddingRight: '16px', borderRight: '1px solid #e2e8f0', fontSize: '10px', lineHeight: '1.5', color: '#0f172a' },
+    metaTo: { flex: 1, paddingLeft: '16px', fontSize: '10px', lineHeight: '1.5', color: '#0f172a' },
+    metaLabel: { fontSize: '9px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#64748b', margin: '0 0 3px 0' },
+    metaP: { margin: '1.5px 0' },
+    table: { width: '100%', borderCollapse: 'collapse', margin: '0 0 10px 0', fontSize: '10px' },
+    th: { border: '1px solid #cbd5e1', padding: '5px 9px', textAlign: 'left', backgroundColor: '#f1f5f9', fontWeight: 700, color: '#0f172a', fontSize: '10px' },
+    td: { border: '1px solid #cbd5e1', padding: '5px 9px', textAlign: 'left', fontWeight: 'normal' },
+    tdBold: { border: '1px solid #cbd5e1', padding: '5px 9px', textAlign: 'left', fontWeight: 700 },
+    tdRight: { border: '1px solid #cbd5e1', padding: '5px 9px', textAlign: 'right', fontWeight: 700 },
+    totalRow: { backgroundColor: '#fafaf9' },
+    sectionH: { fontSize: '10.5px', fontWeight: 700, color: '#0f172a', margin: '8px 0 3px 0', paddingBottom: '2px', borderBottom: '1px solid #e2e8f0' },
+    ul: { margin: 0, paddingLeft: '16px', fontSize: '9px', lineHeight: '1.4', color: '#334155', textAlign: 'justify' },
+    li: { marginBottom: '2.5px' },
+    footer: { position: 'relative', zIndex: 1, marginTop: 'auto', paddingTop: '8px', borderTop: '1px solid #cbd5e1' },
+    footerP: { fontSize: '8.5px', color: '#64748b', margin: 0, lineHeight: '1.4', textAlign: 'center' }
   };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/50 backdrop-blur-sm">
       <div className="relative w-full max-w-4xl overflow-hidden border border-slate-200 bg-white rounded-2xl shadow-2xl animate-[scaleUp_0.25s_ease-out] flex flex-col max-h-[94vh]">
-        
+
         {/* Modal Top Bar */}
         <div className="flex items-center justify-between px-3 sm:px-5 py-2.5 sm:py-3.5 border-b border-slate-200 bg-slate-50/80 text-slate-900 gap-2">
           <div className="flex items-center gap-2 sm:gap-3 truncate">
@@ -245,7 +303,7 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
               <span className="hidden sm:inline">Print / Save PDF (A4 Format)</span>
               <span className="sm:hidden">Print PDF</span>
             </button>
-            <button 
+            <button
               onClick={onClose}
               className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             >
@@ -256,161 +314,99 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
 
         {/* Printable PDF Render Area */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-8 bg-slate-200/80 flex justify-center">
-          <div 
-            id="quotation-print-area" 
+          <div
+            id="quotation-print-area"
             className="w-full max-w-[760px] bg-white text-slate-900 shadow-2xl font-sans"
           >
-            {/* Outer Letterhead Frame with Watermark */}
-            <div 
-              className="letterhead-frame"
-              style={{
-                position: 'relative',
-                border: '1.5px solid #000000',
-                padding: '16px 20px',
-                width: '100%',
-                boxSizing: 'border-box',
-                minHeight: '1040px',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'space-between',
-                overflow: 'hidden',
-                backgroundColor: '#ffffff'
-              }}
-            >
+            <div className="letterhead-frame" style={S.frame}>
+
               {/* Background Logo Watermark */}
-              <div 
-                className="watermark-layer"
-                style={{
-                  position: 'absolute',
-                  top: '52%',
-                  left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: '380px',
-                  maxWidth: '65%',
-                  opacity: 0.085,
-                  pointerEvents: 'none',
-                  zIndex: 0,
-                  userSelect: 'none'
-                }}
-              >
-                <img 
-                  src="/SETULOGO.png" 
-                  alt="Watermark" 
+              <div className="watermark-layer" style={S.watermark}>
+                <img
+                  src="/SETULOGO.png"
+                  alt="Watermark"
                   style={{ width: '100%', height: 'auto', display: 'block' }}
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = '/src/assets/SETULOGO.png';
-                  }}
+                  onError={(e) => { e.target.onerror = null; e.target.src = '/SETULOGO_WHITE.png'; }}
                 />
               </div>
 
-              {/* Foreground Letterhead Content */}
-              <div className="letterhead-body" style={{ position: 'relative', zIndex: 1 }}>
-                
-                {/* Header: Logo Left, Title & DocID Right */}
-                <div 
-                  className="print-header"
-                  style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', width: '100%', marginBottom: '6px' }}
-                >
+              {/* Main Content */}
+              <div className="letterhead-body" style={S.body}>
+
+                {/* Header: Logo + Title */}
+                <div className="print-header" style={S.header}>
                   <div style={{ flexShrink: 0 }}>
-                    <img 
-                      src="/SETULOGO.png" 
-                      alt="SETU Logo" 
+                    <img
+                      src="/SETULOGO.png"
+                      alt="SETU Logo"
                       className="print-logo"
-                      style={{ width: '68px', height: '68px', maxWidth: '68px', maxHeight: '68px', objectFit: 'contain', display: 'block' }}
-                      onError={(e) => {
-                        e.target.onerror = null;
-                        e.target.src = '/src/assets/SETULOGO.png';
-                      }}
+                      style={S.logo}
+                      onError={(e) => { e.target.onerror = null; e.target.src = '/SETULOGO_WHITE.png'; }}
                     />
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <h1 
-                      className="print-doc-title"
-                      style={{ fontSize: '20px', fontWeight: 900, margin: 0, textTransform: 'uppercase', letterSpacing: '0.5px', color: '#000000' }}
-                    >
-                      {docTitle}
-                    </h1>
-                    <p 
-                      className="print-doc-id"
-                      style={{ fontSize: '11.5px', fontWeight: 700, margin: '2px 0 0 0', fontFamily: 'monospace', color: '#1e293b' }}
-                    >
-                      {displayDocId}
+                    <h1 className="print-doc-title" style={S.title}>{docTitle}</h1>
+                    <p className="print-doc-id" style={S.docId}>{displayDocId}</p>
+                  </div>
+                </div>
+
+                {/* From / To — side by side */}
+                <div className="meta-grid" style={S.metaGrid}>
+                  <div className="meta-from" style={S.metaFrom}>
+                    <p className="meta-label" style={S.metaLabel}>From</p>
+                    <p style={{ ...S.metaP, fontWeight: 700 }}>SETU SOLUTION</p>
+                    <p style={S.metaP}>Naka No. 10, Revti Complex, Nagpur, 440023</p>
+                    <p style={S.metaP}>+91 7517913795 / +919834856749</p>
+                    <p style={S.metaP}>official@setusolution.in</p>
+                    <p style={S.metaP}>https://setusolution.in/</p>
+                  </div>
+                  <div className="meta-to" style={S.metaTo}>
+                    <p className="meta-label" style={S.metaLabel}>To</p>
+                    <p style={{ ...S.metaP, fontWeight: 700 }}>{clientName}</p>
+                    {clientAddress && <p style={S.metaP}>{clientAddress}</p>}
+                    {clientPhone && <p style={S.metaP}>{clientPhone}</p>}
+                    {clientEmail && <p style={S.metaP}>{clientEmail}</p>}
+                    <p style={{ ...S.metaP, marginTop: '4px', color: '#64748b', fontSize: '9.5px' }}>
+                      <strong style={{ fontWeight: 700 }}>Date:</strong> {docDate}
                     </p>
                   </div>
                 </div>
 
-                {/* From & To Details Block (Matching Letterhead Style) */}
-                <div className="meta-block" style={{ fontSize: '10.5px', lineHeight: '1.38', color: '#0f172a', marginTop: '6px' }}>
-                  <p style={{ margin: '1px 0' }}><strong style={{ fontWeight: 700 }}>From: SETU SOLUTION</strong></p>
-                  <p style={{ margin: '1px 0' }}><strong style={{ fontWeight: 700 }}>Business Address:</strong> Naka No. 10, Revti Complex, Nagpur, 440023</p>
-                  <p style={{ margin: '1px 0' }}><strong style={{ fontWeight: 700 }}>Contact:</strong> +91 7517913795 / +919834856749</p>
-                  <p style={{ margin: '1px 0' }}><strong style={{ fontWeight: 700 }}>Email:</strong> official@setusolution.in</p>
-                  <p style={{ margin: '1px 0' }}><strong style={{ fontWeight: 700 }}>Website:</strong> <span style={{ textDecoration: 'none' }}>https://setusolution.in/</span></p>
-
-                  <div style={{ marginTop: '5px' }}>
-                    <p style={{ margin: '1px 0' }}><strong style={{ fontWeight: 700 }}>To:</strong></p>
-                    <p style={{ margin: '1px 0' }}><strong style={{ fontWeight: 700 }}>Client Name:</strong> {clientName}</p>
-                    <p style={{ margin: '1px 0' }}><strong style={{ fontWeight: 700 }}>Address:</strong> {clientAddress}</p>
-                    {clientEmail && <p style={{ margin: '1px 0' }}><strong style={{ fontWeight: 700 }}>Email:</strong> {clientEmail}</p>}
-                    <p style={{ margin: '1px 0' }}><strong style={{ fontWeight: 700 }}>Contact:</strong> {clientPhone}</p>
-                    <p style={{ margin: '1px 0' }}><strong style={{ fontWeight: 700 }}>Date:</strong> {docDate}</p>
-                  </div>
-                </div>
-
                 {/* Breakdown Table */}
-                <table style={{ width: '100%', borderCollapse: 'collapse', margin: '6px 0 8px 0', fontSize: '10.5px' }}>
+                <table style={S.table}>
                   <thead>
-                    <tr style={{ backgroundColor: '#f1f5f9' }}>
-                      <th style={{ border: '1px solid #cbd5e1', padding: '5px 8px', textAlign: 'left', fontWeight: 700, width: '68%' }}>
-                        Project Description & Billing Breakdown
-                      </th>
-                      <th style={{ border: '1px solid #cbd5e1', padding: '5px 8px', textAlign: 'left', fontWeight: 700, width: '32%' }}>
-                        Description (1-Year Plan Breakdown)
-                      </th>
+                    <tr>
+                      <th style={{ ...S.th, width: '65%' }}>Project Description & Billing Breakdown</th>
+                      <th style={{ ...S.th, width: '35%' }}>Description (1-Year Plan Breakdown)</th>
                     </tr>
                   </thead>
                   <tbody>
                     {isInvoice ? (
                       <>
-                        {/* Invoice Rows */}
                         <tr>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', fontWeight: 'normal' }}>
-                            {quotation.items && quotation.items.length > 0 
-                              ? quotation.items.map(i => i.description).join(' , ')
-                              : (quotation.title || 'Project Cost (Solar Business Management ,Employee Tracking Android Application)')}
+                          <td style={S.td}>
+                            {quotation.items && quotation.items.length > 0
+                              ? quotation.items.map(i => i.description).join(', ')
+                              : (quotation.title || 'Project Cost')}
                           </td>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', fontWeight: 'normal' }}>
-                            {formatINR(totalAmount)}/-
-                          </td>
+                          <td style={S.td}>{formatINR(totalAmount)}/-</td>
                         </tr>
                         <tr>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', fontWeight: 'normal' }}>
-                            Advance Paid
-                          </td>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', fontWeight: 'normal' }}>
-                            {formatINR(advancePaid)}/-
-                          </td>
+                          <td style={S.td}>Advance Paid</td>
+                          <td style={S.td}>{formatINR(advancePaid)}/-</td>
                         </tr>
-                        <tr>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', textAlign: 'right', fontWeight: 700 }}>
-                            Remaining
-                          </td>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', fontWeight: 700 }}>
-                            {formatINR(remaining)}/-
-                          </td>
+                        <tr style={S.totalRow}>
+                          <td style={S.tdRight}>Remaining</td>
+                          <td style={S.tdBold}>{formatINR(remaining)}/-</td>
                         </tr>
                       </>
                     ) : (
                       <>
-                        {/* Quotation Rows */}
                         {quotation.items && quotation.items.length > 0 ? (
                           quotation.items.map((item, idx) => (
                             <tr key={idx}>
-                              <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', fontWeight: 'normal' }}>
-                                {item.description}
-                              </td>
-                              <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', fontWeight: 'normal' }}>
+                              <td style={S.td}>{item.description}</td>
+                              <td style={S.td}>
                                 {item.breakdown || (item.rate > 0 ? `${formatINR(item.rate * (item.qty || 1))}/-` : '-')}
                               </td>
                             </tr>
@@ -418,33 +414,21 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
                         ) : (
                           <>
                             <tr>
-                              <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', fontWeight: 'normal' }}>
-                                Project Cost (Solar Business Management )
-                              </td>
-                              <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', fontWeight: 'normal' }}>
-                                30,000/-
-                              </td>
+                              <td style={S.td}>Project Cost (Solar Business Management)</td>
+                              <td style={S.td}>30,000/-</td>
                             </tr>
                             <tr>
-                              <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', fontWeight: 'normal' }}>
-                                Employee Tracking Android Application
-                              </td>
-                              <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', fontWeight: 'normal' }}>
-                                100 ( per user for month )
-                              </td>
+                              <td style={S.td}>Employee Tracking Android Application</td>
+                              <td style={S.td}>100 (per user for month)</td>
                             </tr>
                           </>
                         )}
-
-                        {/* Total or Discounted Price Row */}
-                        <tr>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', textAlign: 'right', fontWeight: 700 }}>
-                            {hasDiscount ? 'Total discounted price' : 'Total price'}
-                          </td>
-                          <td style={{ border: '1px solid #cbd5e1', padding: '4.5px 8px', fontWeight: 700 }}>
+                        <tr style={S.totalRow}>
+                          <td style={S.tdRight}>{hasDiscount ? 'Total discounted price' : 'Total price'}</td>
+                          <td style={S.tdBold}>
                             {hasDiscount ? (
                               <span>
-                                <span style={{ textDecoration: 'line-through', color: '#dc2626', fontSize: '9.5px', marginRight: '6px' }}>
+                                <span style={{ textDecoration: 'line-through', color: '#dc2626', fontSize: '9px', marginRight: '6px' }}>
                                   {formatINR(originalTotal)}/-
                                 </span>
                                 <span>{formatINR(totalAmount)}/-</span>
@@ -459,62 +443,52 @@ const QuotationPDFModal = ({ isOpen, onClose, quotation, clientOrLead }) => {
                   </tbody>
                 </table>
 
-                {/* Renewal & Maintenance (Post-1st Year) */}
-                <div className="page-break-avoid" style={{ marginTop: '5px' }}>
-                  <h3 className="section-heading" style={{ fontSize: '11px', fontWeight: 700, margin: '5px 0 2px 0', color: '#000000' }}>
-                    Renewal & Maintenance (Post-1st Year)
-                  </h3>
-                  <ul className="bullet-list" style={{ margin: 0, paddingLeft: '17px', fontSize: '9.5px', lineHeight: '1.32', color: '#1e293b' }}>
-                    <li style={{ marginBottom: '2px' }}>
-                      <strong style={{ fontWeight: 700 }}>Standard Annual Maintenance & Renewal:</strong> ₹{formatINR(renewalPrice)}/- per year (Includes domain renewal, hosting renewal, and ongoing maintenance).
+                {/* Renewal & Maintenance */}
+                <h3 className="section-heading" style={S.sectionH}>Renewal & Maintenance (Post-1st Year)</h3>
+                <ul className="bullet-list" style={S.ul}>
+                  <li style={S.li}>
+                    <strong>Standard Annual Maintenance & Renewal:</strong> ₹{formatINR(renewalPrice)}/- per year (includes domain renewal, hosting renewal, and ongoing maintenance).
+                  </li>
+                  {Number(renewalTrackingPrice) > 0 && (
+                    <li style={S.li}>
+                      <strong>Post-1st Year Tracking:</strong> ₹{formatINR(renewalTrackingPrice)} per active user/month (excluding annual maintenance fees).
                     </li>
-                    {Number(renewalTrackingPrice) > 0 && (
-                      <li style={{ marginBottom: '2px' }}>
-                        <strong style={{ fontWeight: 700 }}>Post-1st Year Tracking:</strong> ₹{formatINR(renewalTrackingPrice)} per active user/month (excluding annual maintenance fees).
-                      </li>
-                    )}
-                    <li style={{ marginBottom: '2px' }}>
-                      <strong style={{ fontWeight: 700 }}>Infrastructure Note:</strong> The software will be hosted securely on a Google Cloud environment, purchased and managed directly by <strong style={{ fontWeight: 700 }}>SETU SOLUTION</strong>.
-                    </li>
-                  </ul>
-                </div>
+                  )}
+                  <li style={S.li}>
+                    <strong>Infrastructure Note:</strong> The software will be hosted securely on a Google Cloud environment, purchased and managed directly by <strong>SETU SOLUTION</strong>.
+                  </li>
+                </ul>
 
                 {/* Terms & Conditions */}
-                <div className="page-break-avoid" style={{ marginTop: '6px' }}>
-                  <h3 className="section-heading" style={{ fontSize: '11px', fontWeight: 700, margin: '5px 0 2px 0', color: '#000000' }}>
-                    Terms & Conditions
-                  </h3>
-                  <ul className="bullet-list" style={{ margin: 0, paddingLeft: '17px', fontSize: '9.5px', lineHeight: '1.32', color: '#1e293b', textAlign: 'justify' }}>
-                    <li style={{ marginBottom: '2px' }}>
-                      <strong style={{ fontWeight: 700 }}>Payment Schedule:</strong> A 50% advance payment is required to initiate the work. The remaining 50% balance is due immediately upon the completion and delivery of the project.
-                    </li>
-                    <li style={{ marginBottom: '2px' }}>
-                      <strong style={{ fontWeight: 700 }}>Payment Default & Project Suspension:</strong> After project delivery, a maximum of three (3) payment reminders will be issued for any pending dues. If the final payment is not received after the third reminder, the project will be temporarily closed and suspended until the full payment is cleared.
-                    </li>
-                    <li style={{ marginBottom: '2px' }}>
-                      <strong style={{ fontWeight: 700 }}>Post-Delivery Updates:</strong> Any new features, custom updates, or changes requested after the delivery of the project will only be accommodated within the first month. All client-requested modifications must be finalized within this one-month timeframe. Additionally, any general feature updates will be initiated automatically in the project at zero extra charge from <strong style={{ fontWeight: 700 }}>SETU SOLUTION</strong>.
-                    </li>
-                    <li style={{ marginBottom: '2px' }}>
-                      <strong style={{ fontWeight: 700 }}>Maintenance Includes:</strong> Website bug fixing & error resolution, security updates & regular monitoring, website backup & recovery support, and SSL & domain configuration support.
-                    </li>
-                    <li style={{ marginBottom: '2px' }}>
-                      <strong style={{ fontWeight: 700 }}>Scope Changes:</strong> Extra features or changes beyond the initially agreed scope will be charged separately after one month.
-                    </li>
-                    <li style={{ marginBottom: '2px' }}>
-                      <strong style={{ fontWeight: 700 }}>Client Responsibilities:</strong> The client must provide required details, content, and approvals on time to ensure timely delivery.
-                    </li>
-                    <li style={{ marginBottom: '2px' }}>
-                      <strong style={{ fontWeight: 700 }}>Refund Policy:</strong> Payments once made are non-refundable after project approval/delivery.
-                    </li>
-                  </ul>
-                </div>
-
+                <h3 className="section-heading" style={S.sectionH}>Terms & Conditions</h3>
+                <ul className="bullet-list" style={S.ul}>
+                  <li style={S.li}>
+                    <strong>Payment Schedule:</strong> A 50% advance payment is required to initiate the work. The remaining 50% balance is due immediately upon the completion and delivery of the project.
+                  </li>
+                  <li style={S.li}>
+                    <strong>Payment Default & Project Suspension:</strong> After project delivery, a maximum of three (3) payment reminders will be issued for any pending dues. If the final payment is not received after the third reminder, the project will be temporarily closed and suspended until the full payment is cleared.
+                  </li>
+                  <li style={S.li}>
+                    <strong>Post-Delivery Updates:</strong> Any new features, custom updates, or changes requested after the delivery of the project will only be accommodated within the first month. All client-requested modifications must be finalized within this one-month timeframe. Additionally, any general feature updates will be initiated automatically in the project at zero extra charge from <strong>SETU SOLUTION</strong>.
+                  </li>
+                  <li style={S.li}>
+                    <strong>Maintenance Includes:</strong> Website bug fixing & error resolution, security updates & regular monitoring, website backup & recovery support, and SSL & domain configuration support.
+                  </li>
+                  <li style={S.li}>
+                    <strong>Scope Changes:</strong> Extra features or changes beyond the initially agreed scope will be charged separately after one month.
+                  </li>
+                  <li style={S.li}>
+                    <strong>Client Responsibilities:</strong> The client must provide required details, content, and approvals on time to ensure timely delivery.
+                  </li>
+                  <li style={S.li}>
+                    <strong>Refund Policy:</strong> Payments once made are non-refundable after project approval/delivery.
+                  </li>
+                </ul>
               </div>
 
-              {/* Letterhead Footer Notice */}
-              <div className="print-footer page-break-avoid" style={{ position: 'relative', zIndex: 1, marginTop: '6px' }}>
-                <hr className="divider-thin" style={{ border: 'none', borderTop: '1px solid #cbd5e1', margin: '5px 0 3px 0' }} />
-                <p style={{ fontSize: '9px', color: '#475569', margin: 0, lineHeight: '1.3', textAlign: 'left' }}>
+              {/* Footer — pushed to bottom via margin-top: auto */}
+              <div className="print-footer" style={S.footer}>
+                <p style={S.footerP}>
                   Thank you for choosing our services. Feel free to reach out through any of the provided contact methods for more information or assistance!
                 </p>
               </div>
