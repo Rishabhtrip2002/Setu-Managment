@@ -14,6 +14,7 @@ import Expenses from './pages/Expenses';
 import Telecaller from './pages/Telecaller';
 import ColdCalling from './pages/ColdCalling';
 import QuotationForm from './components/quotation/QuotationForm';
+import QuotationPDFModal from './components/quotation/QuotationPDFModal';
 import LeadFormModal from './components/lead/LeadFormModal';
 import PaymentFormModal from './components/payment/PaymentFormModal';
 import LeadDetailsDrawer from './components/lead/LeadDetailsDrawer';
@@ -22,7 +23,7 @@ import './App.css';
 
 // Main Inner App which has access to Context
 const CRMApp = () => {
-  const { authUser, authLoading, currentUser } = useCRM();
+  const { authUser, authLoading, currentUser, payments, deletePayment, deleteQuotation } = useCRM();
   const [activePage, setActivePage] = useState('dashboard');
   
   // Shared quick action modals
@@ -34,13 +35,32 @@ const CRMApp = () => {
   // Prefill states for quotations/payments
   const [prefillClientId, setPrefillClientId] = useState('');
   const [prefillType, setPrefillType] = useState('client');
+  const [prefillPaymentContext, setPrefillPaymentContext] = useState(null);
+  const [editingPaymentForModal, setEditingPaymentForModal] = useState(null);
+
+  // Instant generated bill preview state
+  const [generatedBillDoc, setGeneratedBillDoc] = useState(null);
+  const [generatedBillClient, setGeneratedBillClient] = useState(null);
 
   // 1. Initial Firebase Auth Session Verification
   if (authLoading || (authUser && !currentUser)) {
     return (
-      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-slate-50 text-slate-800 gap-3">
-        <Loader2 className="w-8 h-8 text-orange-500 animate-spin" />
-        <p className="text-xs text-slate-500 font-medium tracking-wide">Connecting to SETU CRM Portal...</p>
+      <div className="min-h-screen w-full flex flex-col items-center justify-center bg-white gap-5">
+        <div className="w-24 h-24 rounded-2xl bg-white shadow-lg shadow-orange-500/10 border border-slate-100 p-3 flex items-center justify-center">
+          <img
+            src="/SETULOGO.png"
+            alt="Setu Solution"
+            className="w-full h-full object-contain"
+            onError={(e) => { e.target.onerror = null; e.target.src = '/SETULOGO_WHITE.png'; }}
+          />
+        </div>
+        <div className="flex flex-col items-center gap-2.5">
+          <div className="flex items-center gap-2">
+            <Loader2 className="w-4.5 h-4.5 text-orange-500 animate-spin" />
+            <p className="text-sm text-slate-600 font-semibold tracking-wide">Loading CRM...</p>
+          </div>
+          <p className="text-[11px] text-slate-400 font-medium">Setu Solution — Custom Software</p>
+        </div>
       </div>
     );
   }
@@ -69,8 +89,9 @@ const CRMApp = () => {
     setQuickQuoteOpen(true);
   };
 
-  const handleAddPaymentTrigger = (clientId) => {
+  const handleAddPaymentTrigger = (clientId, contextData = null) => {
     setPrefillClientId(clientId);
+    setPrefillPaymentContext(contextData);
     setQuickPaymentOpen(true);
   };
 
@@ -170,9 +191,46 @@ const CRMApp = () => {
 
       <PaymentFormModal
         isOpen={quickPaymentOpen}
-        onClose={() => setQuickPaymentOpen(false)}
+        onClose={() => { setQuickPaymentOpen(false); setPrefillPaymentContext(null); setEditingPaymentForModal(null); }}
         preselectedClientId={prefillClientId}
+        preselectedContext={prefillPaymentContext}
+        paymentToEdit={editingPaymentForModal}
+        onBillCreated={(quoteDoc, clientDoc) => {
+          setGeneratedBillDoc(quoteDoc);
+          setGeneratedBillClient(clientDoc);
+        }}
       />
+
+      {/* Instant Bill Preview after creation */}
+      {generatedBillDoc && (
+        <QuotationPDFModal
+          isOpen={!!generatedBillDoc}
+          onClose={() => { setGeneratedBillDoc(null); setGeneratedBillClient(null); }}
+          quotation={generatedBillDoc}
+          clientOrLead={generatedBillClient}
+          onEdit={(doc) => {
+            const p = payments.find(item => item.quotationId === doc.id || item.id === doc.id);
+            setGeneratedBillDoc(null);
+            if (p) {
+              setEditingPaymentForModal(p);
+              setPrefillClientId(p.clientId);
+              setQuickPaymentOpen(true);
+            } else {
+              setPrefillClientId(doc.clientOrLeadId || '');
+              setQuickQuoteOpen(true);
+            }
+          }}
+          onDelete={(doc) => {
+            const p = payments.find(item => item.quotationId === doc.id || item.id === doc.id);
+            if (p) {
+              deletePayment(p.id);
+            } else {
+              deleteQuotation(doc.id);
+            }
+            setGeneratedBillDoc(null);
+          }}
+        />
+      )}
 
       {/* Global Lead Details Drawer (e.g. from Follow-up Alert) */}
       {globalDrawerLead && (

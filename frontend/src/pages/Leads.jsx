@@ -712,7 +712,7 @@ const Leads = ({ addQuoteTrigger, addPaymentTrigger }) => {
         onClose={() => setDrawerOpen(false)}
         lead={selectedLead}
         onAddQuoteForLead={(id, type) => { setDrawerOpen(false); addQuoteTrigger(id, type); }}
-        onAddPaymentForLead={(clientId) => { setDrawerOpen(false); addPaymentTrigger(clientId); }}
+        onAddPaymentForLead={(clientId, context) => { setDrawerOpen(false); addPaymentTrigger(clientId, context || { lead: selectedLead }); }}
       />
       {followUpLead && <FollowUpModal isOpen={!!followUpLead} onClose={() => setFollowUpLead(null)} lead={followUpLead} />}
       {callLogLead && (

@@ -526,28 +526,6 @@ const QuotationForm = ({ isOpen, onClose, clientOrLeadId, type, quotationToEdit,
                   Includes domain renewal, hosting renewal, and ongoing maintenance.
                 </p>
               </div>
-
-              <div>
-                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
-                  Post-1st Year Tracking (₹/user/month)
-                </label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <span className="text-xs font-bold">₹</span>
-                  </div>
-                  <input
-                    type="number"
-                    min="0"
-                    className="w-full pl-7 pr-3 py-2 text-xs bg-white border border-slate-200 focus:bg-white focus:border-orange-500 focus:ring-1 focus:ring-orange-500 rounded-xl outline-none text-slate-900 font-medium"
-                    placeholder="e.g. 100 (or 0 if none)"
-                    value={renewalTrackingPrice}
-                    onChange={e => setRenewalTrackingPrice(e.target.value)}
-                  />
-                </div>
-                <p className="text-[10px] text-slate-500 mt-1">
-                  Optional. Leave 0 to omit user tracking fee from terms.
-                </p>
-              </div>
             </div>
           </div>
 

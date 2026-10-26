@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { useCRM, normalizeDocumentId, normalizePhoneNumber } from '../../context/CRMContext';
 import QuotationPDFModal from '../quotation/QuotationPDFModal';
+import QuotationForm from '../quotation/QuotationForm';
+import PaymentFormModal from '../payment/PaymentFormModal';
 import FollowUpModal from '../followup/FollowUpModal';
 import CallLogModal from '../telecaller/CallLogModal';
 import { 
@@ -28,7 +30,11 @@ import {
   PhoneCall,
   History,
   PhoneForwarded,
-  Timer
+  Timer,
+  Sparkles,
+  Maximize2,
+  Minimize2,
+  Edit3
 } from 'lucide-react';
 
 const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaymentForLead }) => {
@@ -47,14 +53,26 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
     deleteFollowUp,
     getTodayDateString,
     currentUser,
-    employees
+    employees,
+    recordPaymentPayment,
+    deleteQuotation,
+    deletePayment
   } = useCRM();
 
   const [activeTab, setActiveTab] = useState('calls'); // calls, quotes, followups, info, payments, whatsapp
   const [chatMessage, setChatMessage] = useState('');
   const [pdfModalOpen, setPdfModalOpen] = useState(false);
   const [selectedPdfDoc, setSelectedPdfDoc] = useState(null);
+  const [isFullScreen, setIsFullScreen] = useState(true); // Default to full screen desktop view
   
+  // Quotation & Invoice edit modal states
+  const [quotationModalOpen, setQuotationModalOpen] = useState(false);
+  const [editingQuote, setEditingQuote] = useState(null);
+
+  // Payment deal edit modal states
+  const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [editingPayment, setEditingPayment] = useState(null);
+
   // Follow-up modal states
   const [followUpModalOpen, setFollowUpModalOpen] = useState(false);
   const [editingFollowUp, setEditingFollowUp] = useState(null);
@@ -88,11 +106,64 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
   // Active Lead Quotation JSON
   const leadQuotationData = lead.quotation || (linkedQuotes.length > 0 ? linkedQuotes[0] : null);
 
-  const handleOpenDocPDF = (doc) => {
-    setSelectedPdfDoc(doc);
+  const handleOpenDocPDF = (doc, paymentRecord = null) => {
+    let finalDoc = doc;
+    if (paymentRecord) {
+      finalDoc = {
+        ...doc,
+        id: doc.id || paymentRecord.quotationId || paymentRecord.id,
+        docNumber: doc.docNumber || paymentRecord.quotationId || paymentRecord.id,
+        docType: doc.docType || 'Invoice',
+        title: doc.title || paymentRecord.quoteTitle || 'Official Services Invoice',
+        date: doc.date || paymentRecord.createdAt?.split('T')[0] || getTodayDateString(),
+        clientName: doc.clientName || clientRecord?.name || lead.name,
+        companyName: doc.companyName || clientRecord?.companyName || lead.company,
+        address: doc.address || clientRecord?.address || lead.address,
+        phone: doc.phone || clientRecord?.phone || lead.phone,
+        email: doc.email || clientRecord?.email || lead.email,
+        items: doc.items && doc.items.length > 0 ? doc.items : [
+          { description: paymentRecord.quoteTitle || 'Software & Services', breakdown: '', rate: paymentRecord.totalAmount, qty: 1 }
+        ],
+        total: paymentRecord.totalAmount || doc.total,
+        advancePaid: paymentRecord.instalments?.filter(i => i.status === 'Paid').reduce((s, c) => s + c.amount, 0) || doc.advancePaid || 0,
+        remaining: Math.max(0, (paymentRecord.totalAmount || doc.total) - (paymentRecord.instalments?.filter(i => i.status === 'Paid').reduce((s, c) => s + c.amount, 0) || 0)),
+        renewalPrice: paymentRecord.renewalCost || doc.renewalPrice || doc.renewalCost || clientRecord?.renewalCost || 0,
+        renewalCost: paymentRecord.renewalCost || doc.renewalCost || clientRecord?.renewalCost || 0
+      };
+    } else if (doc) {
+      finalDoc = {
+        ...doc,
+        renewalPrice: doc.renewalPrice !== undefined ? doc.renewalPrice : (doc.renewalCost !== undefined ? doc.renewalCost : (clientRecord?.renewalCost || 0)),
+        renewalCost: doc.renewalCost !== undefined ? doc.renewalCost : (clientRecord?.renewalCost || 0)
+      };
+    }
+    setSelectedPdfDoc(finalDoc);
     setPdfModalOpen(true);
   };
 
+  const handleEditDoc = (doc) => {
+    // If doc is an invoice or has matching payment schedule, open PaymentFormModal
+    const matchingPayment = payments.find(p => p.quotationId === doc.id || p.id === doc.id);
+    if (matchingPayment) {
+      setEditingPayment(matchingPayment);
+      setPaymentModalOpen(true);
+    } else {
+      setEditingQuote(doc);
+      setQuotationModalOpen(true);
+    }
+  };
+
+  const handleDeleteDoc = (doc, askConfirm = true) => {
+    if (askConfirm && !window.confirm(`Are you sure you want to permanently delete this ${doc.docType || 'Document'} (${doc.id})?`)) {
+      return;
+    }
+    const matchingPayment = payments.find(p => p.quotationId === doc.id || p.id === doc.id);
+    if (matchingPayment) {
+      deletePayment(matchingPayment.id);
+    } else {
+      deleteQuotation(doc.id);
+    }
+  };
 
   const handleSendChat = (e) => {
     e.preventDefault();
@@ -126,20 +197,26 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
 
   return (
     <>
-      {/* Backdrop */}
-      <div 
-        className="fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-xs transition-opacity duration-300"
-        onClick={onClose}
-      />
+      {/* Backdrop (visible only in compact drawer mode, strictly not covering the desktop left menu) */}
+      {!isFullScreen && (
+        <div 
+          className="fixed inset-y-0 left-0 lg:left-64 right-0 z-30 bg-slate-950/25 backdrop-blur-xs transition-opacity duration-300"
+          onClick={onClose}
+        />
+      )}
 
-      {/* Drawer */}
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-2xl border-l border-slate-200 bg-white shadow-2xl flex flex-col h-full animate-[slideLeft_0.3s_ease-out] text-slate-800">
+      {/* Lead Details Container: Leaves desktop left menu untouched (lg:left-64) and uses all remaining space */}
+      <div className={`fixed inset-y-0 right-0 z-40 bg-white flex flex-col h-full text-slate-800 transition-all duration-200 ${
+        isFullScreen 
+          ? 'left-0 lg:left-64 border-l border-slate-200 shadow-none animate-[fadeIn_0.2s_ease-out]' 
+          : 'w-full max-w-3xl border-l border-slate-200 shadow-2xl animate-[slideLeft_0.3s_ease-out]'
+      }`}>
         
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-slate-200 bg-slate-50/90 gap-2.5 sm:gap-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between px-4 sm:px-6 lg:px-8 py-3.5 sm:py-4 border-b border-slate-200 bg-slate-50/90 gap-2.5 sm:gap-3 shrink-0">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h3 className="text-base sm:text-lg font-bold text-slate-900">{lead.name}</h3>
+              <h3 className="text-base sm:text-xl font-extrabold text-slate-900">{lead.name}</h3>
               <span className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${getStatusBadge(lead.status)}`}>
                 {lead.status}
               </span>
@@ -155,11 +232,11 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
               )}
             </div>
             <p className="text-xs text-slate-500 mt-0.5 font-mono">
-              Lead ID: {lead.id} {lead.company ? `• ${lead.company}` : ''}
+              Lead ID: {lead.id} {lead.company ? `• ${lead.company}` : ''} {lead.phone ? `• ${lead.phone}` : ''}
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <a 
               href={`tel:${lead.phone}`}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-xs font-bold transition-all shadow-xs"
@@ -171,15 +248,25 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
 
             <button
               onClick={() => setCallLogModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs font-bold shadow-md shadow-orange-500/20 hover-scale transition-all"
+              className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white text-xs font-bold shadow-md shadow-orange-500/20 hover-scale transition-all cursor-pointer"
             >
               <PhoneCall className="w-3.5 h-3.5" />
               <span>Log Outcome</span>
             </button>
 
+            {/* Desktop View toggle (Fill remaining space vs Compact drawer) */}
+            <button
+              type="button"
+              onClick={() => setIsFullScreen(!isFullScreen)}
+              className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors hidden sm:flex items-center justify-center border border-slate-200 cursor-pointer"
+              title={isFullScreen ? "Compact Drawer View" : "Fill Remaining Space"}
+            >
+              {isFullScreen ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
+            </button>
+
             <button 
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors ml-1"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors ml-1 cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -187,7 +274,7 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
         </div>
 
         {/* Tab Headers */}
-        <div className="flex px-3 sm:px-4 border-b border-slate-200 bg-slate-50/50 overflow-x-auto no-scrollbar">
+        <div className="flex px-4 sm:px-6 lg:px-8 border-b border-slate-200 bg-slate-50/50 overflow-x-auto no-scrollbar shrink-0">
           {[
             { id: 'calls', label: 'Telecaller & Calls', icon: PhoneCall, badge: (lead.callLogs?.length || null) },
             { id: 'quotes', label: 'Quotation / Bill', icon: FileText },
@@ -202,7 +289,7 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all whitespace-nowrap ${
+                className={`flex items-center gap-1.5 px-3.5 py-3 text-xs font-semibold uppercase tracking-wider border-b-2 transition-all whitespace-nowrap cursor-pointer ${
                   active 
                     ? 'border-orange-500 text-orange-600 font-bold' 
                     : 'border-transparent text-slate-500 hover:text-slate-800'
@@ -222,14 +309,15 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
 
         {/* Notice alert */}
         {followUpNotice && (
-          <div className="px-6 py-2.5 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2">
+          <div className="px-6 py-2.5 bg-emerald-50 border-b border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-2 shrink-0">
             <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             <span>{followUpNotice}</span>
           </div>
         )}
 
         {/* Tab Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-50/40">
+          <div className={isFullScreen ? "max-w-7xl mx-auto w-full space-y-6" : "w-full space-y-6"}>
           
           {/* ======================================================== */}
           {/* Tab: Telecaller & Call Logs                              */}
@@ -622,10 +710,25 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
                   <div className="mt-4 flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
                     <button
                       onClick={() => handleOpenDocPDF(leadQuotationData)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale transition-all shadow-xs"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-xl hover-scale transition-all shadow-xs cursor-pointer"
                     >
                       <Eye className="w-3.5 h-3.5" />
-                      <span>View & Print PDF (SETU Format)</span>
+                      <span>View & Print PDF</span>
+                    </button>
+                    <button
+                      onClick={() => handleEditDoc(leadQuotationData)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl hover-scale transition-all cursor-pointer"
+                      title="Edit Document"
+                    >
+                      <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                      <span>Edit</span>
+                    </button>
+                    <button
+                      onClick={() => handleDeleteDoc(leadQuotationData)}
+                      className="p-1.5 text-slate-400 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 border border-slate-200 rounded-xl hover-scale transition-all cursor-pointer"
+                      title="Delete Document"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
                 </div>
@@ -671,10 +774,24 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
                         </div>
                         <button
                           onClick={() => handleOpenDocPDF(q)}
-                          className="p-2 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-600 hover-scale"
+                          className="p-2 rounded-xl bg-orange-50 hover:bg-orange-100 border border-orange-200 text-orange-600 hover-scale cursor-pointer"
                           title="View PDF"
                         >
                           <Eye className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleEditDoc(q)}
+                          className="p-2 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 text-slate-500 hover:text-slate-800 hover-scale cursor-pointer"
+                          title="Edit Document"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteDoc(q)}
+                          className="p-2 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200 text-slate-400 hover:text-rose-600 hover-scale cursor-pointer"
+                          title="Delete Document"
+                        >
+                          <Trash2 className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -784,7 +901,7 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
                   </p>
                   <button 
                     onClick={() => updateLeadStatus(lead.id, 'Won')}
-                    className="mt-4 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-xs font-bold hover-scale shadow-sm"
+                    className="mt-4 px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-xs font-bold hover-scale shadow-sm cursor-pointer"
                   >
                     Mark Won & Convert Now
                   </button>
@@ -792,47 +909,191 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
               ) : (
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wide">
-                      Converted Client Payment Schedules ({clientPayments.length})
-                    </h4>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-600 uppercase tracking-wide">
+                        Converted Client Payment Schedules ({clientPayments.length})
+                      </h4>
+                      <p className="text-[10px] text-slate-400 mt-0.5">Manage deal installments, advance collection, and subscription renewals.</p>
+                    </div>
                     <button
-                      onClick={() => onAddPaymentForLead(clientRecord?.id || lead.id)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl hover-scale shadow-sm"
+                      onClick={() => onAddPaymentForLead(clientRecord?.id || lead.id, { lead, client: clientRecord })}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl hover-scale shadow-sm cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
-                      <span>Record Installment</span>
+                      <span>{clientPayments.length === 0 ? 'Record 1st Payment' : 'Record Installment'}</span>
                     </button>
                   </div>
 
+                  {/* Empty state: 1st Payment Onboarding prompt */}
+                  {clientPayments.length === 0 && (
+                    <div className="py-10 px-6 border border-dashed border-orange-200 rounded-2xl flex flex-col items-center text-center bg-gradient-to-b from-orange-50/40 to-white shadow-2xs">
+                      <div className="w-12 h-12 rounded-2xl bg-orange-100/80 border border-orange-200 text-orange-600 flex items-center justify-center mb-3 shadow-2xs">
+                        <Sparkles className="w-6 h-6" />
+                      </div>
+                      <h4 className="text-sm font-extrabold text-slate-900">Won Lead Ready for Deal Onboarding</h4>
+                      <p className="text-xs text-slate-500 mt-1 max-w-md leading-relaxed">
+                        Record the 1st payment / advance, contract duration, next year renewal cost, and future installment schedule.
+                      </p>
+                      <button
+                        onClick={() => onAddPaymentForLead(clientRecord?.id || lead.id, { lead, client: clientRecord })}
+                        className="mt-4 flex items-center gap-2 px-5 py-2.5 bg-gradient-to-r from-orange-500 to-amber-500 text-white rounded-xl text-xs font-bold hover-scale shadow-sm cursor-pointer"
+                      >
+                        <Plus className="w-4 h-4" />
+                        <span>Record 1st Payment & Onboard Client</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Existing Payment Schedules */}
                   {clientPayments.map(p => {
-                    const totalPaid = p.installments?.reduce((acc, curr) => acc + curr.amount, 0) || 0;
-                    const percent = Math.round((totalPaid / p.totalAmount) * 100) || 0;
+                    const paidInstalments = p.instalments?.filter(i => i.status === 'Paid') || [];
+                    const totalPaid = paidInstalments.reduce((acc, curr) => acc + (Number(curr.amount) || 0), 0);
+                    const balance = Math.max(0, p.totalAmount - totalPaid);
+                    const percent = p.totalAmount > 0 ? Math.round((totalPaid / p.totalAmount) * 100) : 0;
+
+                    // Linked quotation or invoice
+                    const linkedQuote = quotations.find(q => q.id === p.quotationId);
+
                     return (
-                      <div key={p.id} className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs">
-                        <div className="flex items-center justify-between">
+                      <div key={p.id} className="p-4 bg-white border border-slate-200 rounded-2xl shadow-xs space-y-4">
+                        {/* Header */}
+                        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-slate-100 pb-3">
                           <div>
-                            <h5 className="text-sm font-semibold text-slate-900">Quote: {p.quotationId}</h5>
-                            <p className="text-xs text-slate-500 mt-0.5">Total Schedule: ₹{new Intl.NumberFormat('en-IN').format(p.totalAmount)}</p>
+                            <div className="flex items-center gap-2">
+                              <h5 className="text-sm font-bold text-slate-900">{p.quoteTitle || `Schedule: ${p.id}`}</h5>
+                              <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                p.status === 'Paid in Full' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                p.status === 'Partial' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                'bg-rose-50 text-rose-700 border border-rose-200'
+                              }`}>
+                                {p.status}
+                              </span>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              Doc Ref: <span className="font-mono font-bold text-slate-700">{p.quotationId || p.id}</span> | Total Deal: ₹{new Intl.NumberFormat('en-IN').format(p.totalAmount)}
+                            </p>
                           </div>
-                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
-                            p.status === 'Paid in Full' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                            p.status === 'Partial' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
-                            'bg-rose-50 text-rose-700 border border-rose-200'
-                          }`}>
-                            {p.status}
+
+                          <div className="flex items-center gap-2">
+                            {linkedQuote && (
+                              <button
+                                onClick={() => handleOpenDocPDF(linkedQuote, p)}
+                                className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-xl transition-all hover-scale cursor-pointer"
+                                title="View Official Setu Invoice / Bill PDF"
+                              >
+                                <Receipt className="w-3.5 h-3.5 text-amber-600" />
+                                <span>View Bill</span>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => {
+                                setEditingPayment(p);
+                                setPaymentModalOpen(true);
+                              }}
+                              className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all hover-scale cursor-pointer"
+                              title="Edit Deal & Bill Terms"
+                            >
+                              <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                              <span>Edit Bill</span>
+                            </button>
+                            <button
+                              onClick={() => {
+                                if (window.confirm(`Are you sure you want to delete this payment schedule and invoice?`)) {
+                                  deletePayment(p.id);
+                                }
+                              }}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 border border-slate-200 rounded-xl hover-scale cursor-pointer"
+                              title="Delete Schedule & Invoice"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                            <div className="text-right">
+                              <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Balance</span>
+                              <span className="text-xs font-black text-rose-600">
+                                ₹{new Intl.NumberFormat('en-IN').format(balance)}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Deal Badges: Subscription duration & Renewal cost */}
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
+                            ⏱ Duration: {p.subscriptionDurationMonths || clientRecord?.subscriptionDurationMonths || 12} Months
                           </span>
+                          {(p.renewalCost > 0 || clientRecord?.renewalCost > 0) && (
+                            <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-purple-50 text-purple-700 border border-purple-200">
+                              🔄 Renewal: ₹{new Intl.NumberFormat('en-IN').format(p.renewalCost || clientRecord?.renewalCost)}/yr
+                            </span>
+                          )}
+                          {(p.renewalDueDate || clientRecord?.renewalDueDate) && (
+                            <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                              📅 Next Renewal: {p.renewalDueDate || clientRecord?.renewalDueDate}
+                            </span>
+                          )}
                         </div>
 
                         {/* Progress */}
-                        <div className="mt-4">
+                        <div>
                           <div className="flex justify-between text-[11px] font-bold text-slate-600 mb-1">
                             <span>Paid: ₹{new Intl.NumberFormat('en-IN').format(totalPaid)}</span>
-                            <span>{percent}%</span>
+                            <span>{percent}% Collected</span>
                           </div>
-                          <div className="w-full bg-slate-150 h-2 rounded-full overflow-hidden">
-                            <div className="bg-orange-500 h-full rounded-full transition-all duration-500" style={{ width: `${percent}%` }}></div>
+                          <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden border border-slate-200">
+                            <div className="bg-gradient-to-r from-orange-500 to-amber-500 h-full rounded-full transition-all duration-500" style={{ width: `${percent}%` }}></div>
                           </div>
                         </div>
+
+                        {/* Installments Breakdown List */}
+                        {Array.isArray(p.instalments) && p.instalments.length > 0 && (
+                          <div className="space-y-2 pt-2 border-t border-slate-100">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 block mb-1">
+                              Installments Schedule
+                            </span>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              {p.instalments.map((inst, idx) => {
+                                const isPaid = inst.status === 'Paid';
+                                return (
+                                  <div 
+                                    key={inst.id || idx}
+                                    className={`p-2.5 rounded-xl border flex items-center justify-between text-xs ${
+                                      isPaid ? 'bg-emerald-50/30 border-emerald-200' : 'bg-slate-50 border-slate-200'
+                                    }`}
+                                  >
+                                    <div>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="font-bold text-slate-800">Part #{idx + 1}</span>
+                                        {inst.notes && <span className="text-[9px] text-slate-400 font-semibold">({inst.notes})</span>}
+                                      </div>
+                                      <p className="text-[10px] text-slate-500 mt-0.5">
+                                        {isPaid ? `Paid: ${inst.paidDate} (${inst.paymentMethod || 'UPI'})` : `Due: ${inst.dueDate}`}
+                                      </p>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-black text-slate-900">
+                                        ₹{new Intl.NumberFormat('en-IN').format(inst.amount)}
+                                      </span>
+                                      {!isPaid ? (
+                                        <button
+                                          onClick={() => recordPaymentPayment(p.id, inst.id)}
+                                          className="px-2.5 py-1 text-[9px] font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 rounded-lg hover-scale transition-colors shadow-2xs cursor-pointer"
+                                        >
+                                          Collect
+                                        </button>
+                                      ) : (
+                                        <span className="px-2 py-0.5 text-[9px] font-bold text-emerald-700 bg-emerald-100 rounded-md">
+                                          Paid
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
                       </div>
                     );
                   })}
@@ -894,6 +1155,7 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
             </div>
           )}
 
+          </div>
         </div>
       </div>
 
@@ -903,7 +1165,36 @@ const LeadDetailsDrawer = ({ isOpen, onClose, lead, onAddQuoteForLead, onAddPaym
           isOpen={pdfModalOpen}
           onClose={() => setPdfModalOpen(false)}
           quotation={selectedPdfDoc}
-          clientOrLead={lead}
+          clientOrLead={clientRecord || lead}
+          onEdit={(doc) => handleEditDoc(doc)}
+          onDelete={(doc) => handleDeleteDoc(doc, false)}
+        />
+      )}
+
+      {/* Embedded Quotation / Invoice Edit Modal */}
+      {quotationModalOpen && (
+        <QuotationForm
+          isOpen={quotationModalOpen}
+          onClose={() => { setQuotationModalOpen(false); setEditingQuote(null); }}
+          clientOrLeadId={lead.id}
+          type="lead"
+          quotationToEdit={editingQuote}
+          defaultDocType={editingQuote?.docType || 'Quotation'}
+        />
+      )}
+
+      {/* Embedded Payment / Bill Edit Modal */}
+      {paymentModalOpen && (
+        <PaymentFormModal
+          isOpen={paymentModalOpen}
+          onClose={() => { setPaymentModalOpen(false); setEditingPayment(null); }}
+          preselectedClientId={clientRecord?.id || lead.id}
+          preselectedContext={{ lead, client: clientRecord }}
+          paymentToEdit={editingPayment}
+          onBillCreated={(doc) => {
+            setSelectedPdfDoc(doc);
+            setPdfModalOpen(true);
+          }}
         />
       )}
 

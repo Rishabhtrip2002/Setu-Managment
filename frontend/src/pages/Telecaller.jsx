@@ -1086,7 +1086,7 @@ const Telecaller = ({ addQuoteTrigger, addPaymentTrigger }) => {
           onClose={() => setSelectedLeadForDrawer(null)}
           lead={selectedLeadForDrawer}
           onAddQuoteForLead={addQuoteTrigger}
-          onAddPaymentForLead={addPaymentTrigger}
+          onAddPaymentForLead={(id, ctx) => addPaymentTrigger(id, ctx || { lead: selectedLeadForDrawer })}
         />
       )}
 

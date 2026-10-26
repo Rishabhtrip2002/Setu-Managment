@@ -147,13 +147,11 @@ const Quotations = ({ initialOpenForm = false, prefilledId = '', prefilledType =
     setTimeout(() => setFeedbackNotice(null), 6000);
   };
 
-  const handleDelete = (quoteId) => {
-    if (confirm("Are you sure you want to delete this document?")) {
-      const success = deleteQuotation(quoteId);
-      if (!success) {
-        alert("Action Denied: Staff roles do not have permission to delete records.");
-      }
+  const handleDelete = (quoteId, askConfirm = true) => {
+    if (askConfirm && !confirm("Are you sure you want to permanently delete this document?")) {
+      return;
     }
+    deleteQuotation(quoteId);
   };
 
   return (
@@ -358,15 +356,13 @@ const Quotations = ({ initialOpenForm = false, prefilledId = '', prefilledType =
                   >
                     <Send className="w-3.5 h-3.5" />
                   </button>
-                  {(currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') && (
-                    <button
-                      onClick={() => handleDelete(q.id)}
-                      className="p-2 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200 text-slate-400 hover:text-rose-600 cursor-pointer transition-colors"
-                      title="Delete"
-                    >
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleDelete(q.id)}
+                    className="p-2 rounded-xl bg-slate-50 hover:bg-rose-50 border border-slate-200 text-slate-400 hover:text-rose-600 cursor-pointer transition-colors"
+                    title={`Delete ${isInvoice ? 'Invoice' : 'Quotation'}`}
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
                 </div>
               </div>
 
@@ -399,6 +395,8 @@ const Quotations = ({ initialOpenForm = false, prefilledId = '', prefilledType =
         onClose={() => setPdfOpen(false)}
         quotation={selectedQuote}
         clientOrLead={selectedQuote ? getEntityRecord(selectedQuote.clientOrLeadId, selectedQuote.type) : null}
+        onEdit={(q) => handleOpenEdit(q)}
+        onDelete={(q) => handleDelete(q.id, false)}
       />
 
     </div>

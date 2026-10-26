@@ -13,7 +13,8 @@ import {
   Coins, 
   History, 
   Receipt, 
-  Eye 
+  Eye,
+  Edit3
 } from 'lucide-react';
 
 const Payments = ({ initialOpenForm = false, preselectedClientId = '' }) => {
@@ -30,6 +31,7 @@ const Payments = ({ initialOpenForm = false, preselectedClientId = '' }) => {
   const [search, setSearch] = useState('');
   const [formOpen, setFormOpen] = useState(initialOpenForm);
   const [clientId, setClientId] = useState(preselectedClientId);
+  const [paymentToEdit, setPaymentToEdit] = useState(null);
   const [invoicePdfOpen, setInvoicePdfOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState(null);
 
@@ -71,11 +73,32 @@ const Payments = ({ initialOpenForm = false, preselectedClientId = '' }) => {
       ],
       total: payment.totalAmount || 0,
       advancePaid: paidAmt,
-      remaining: balance >= 0 ? balance : 0
+      remaining: balance >= 0 ? balance : 0,
+      renewalPrice: payment.renewalCost || linkedQuote?.renewalPrice || linkedQuote?.renewalCost || client?.renewalCost || 0,
+      renewalCost: payment.renewalCost || linkedQuote?.renewalCost || client?.renewalCost || 0
     };
 
     setSelectedInvoice(invoiceDoc);
     setInvoicePdfOpen(true);
+  };
+
+  const handleEditPayment = (payment) => {
+    setPaymentToEdit(payment);
+    setClientId(payment.clientId);
+    setFormOpen(true);
+  };
+
+  const handleOpenFormNew = () => {
+    setPaymentToEdit(null);
+    setClientId('');
+    setFormOpen(true);
+  };
+
+  const handleDelete = (id, askConfirm = true) => {
+    if (askConfirm && !window.confirm('Are you sure you want to permanently delete this Invoice and its payment ledger schedule?')) {
+      return;
+    }
+    deletePayment(id);
   };
 
   // Filter list
@@ -101,20 +124,6 @@ const Payments = ({ initialOpenForm = false, preselectedClientId = '' }) => {
 
   const totalOutstandingSum = totalInvoicedSum - totalCollectedSum;
   const overallCollectionPercent = totalInvoicedSum > 0 ? Math.round((totalCollectedSum / totalInvoicedSum) * 100) : 0;
-
-  const handleDelete = (paymentId) => {
-    if (confirm("Are you sure you want to delete this payment schedule?")) {
-      const success = deletePayment(paymentId);
-      if (!success) {
-        alert("Action Denied: Staff roles do not have permission to delete records.");
-      }
-    }
-  };
-
-  const handleOpenFormNew = () => {
-    setClientId('');
-    setFormOpen(true);
-  };
 
   return (
     <div className="space-y-6">
@@ -231,21 +240,28 @@ const Payments = ({ initialOpenForm = false, preselectedClientId = '' }) => {
                     <span>View Bill / Invoice</span>
                   </button>
 
+                  <button
+                    onClick={() => handleEditPayment(p)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl transition-all hover-scale cursor-pointer"
+                    title="Edit Invoice & Payment Schedule"
+                  >
+                    <Edit3 className="w-3.5 h-3.5 text-slate-500" />
+                    <span>Edit</span>
+                  </button>
+
                   <div className="text-right">
                     <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Outstanding Balance</p>
                     <p className="text-base font-black text-slate-900 mt-0.5">
                       {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(balance)}
                     </p>
                   </div>
-                  {(currentUser?.role === 'Admin' || currentUser?.role === 'Super Admin') && (
-                    <button
-                      onClick={() => handleDelete(p.id)}
-                      className="p-2 text-slate-400 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 border border-slate-200 rounded-xl hover-scale cursor-pointer transition-colors"
-                      title="Remove Ledger Schedule"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
+                  <button
+                    onClick={() => handleDelete(p.id)}
+                    className="p-2 text-slate-400 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 border border-slate-200 rounded-xl hover-scale cursor-pointer transition-colors"
+                    title="Delete Invoice & Ledger Schedule"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
@@ -353,8 +369,13 @@ const Payments = ({ initialOpenForm = false, preselectedClientId = '' }) => {
       {/* Payment Form Modal */}
       <PaymentFormModal
         isOpen={formOpen}
-        onClose={() => setFormOpen(false)}
+        onClose={() => { setFormOpen(false); setPaymentToEdit(null); }}
         preselectedClientId={clientId}
+        paymentToEdit={paymentToEdit}
+        onBillCreated={(quote, client) => {
+          setSelectedInvoice(quote);
+          setInvoicePdfOpen(true);
+        }}
       />
 
       {/* Invoice (Bill) PDF Viewer Modal */}
@@ -362,7 +383,25 @@ const Payments = ({ initialOpenForm = false, preselectedClientId = '' }) => {
         isOpen={invoicePdfOpen}
         onClose={() => setInvoicePdfOpen(false)}
         quotation={selectedInvoice}
-        clientOrLead={selectedInvoice ? getClientRecord(selectedInvoice.clientId) : null}
+        clientOrLead={selectedInvoice ? getClientRecord(selectedInvoice.clientId || selectedInvoice.clientOrLeadId) : null}
+        onEdit={(invoiceDoc) => {
+          const p = payments.find(item => item.quotationId === invoiceDoc.id || item.id === invoiceDoc.id);
+          if (p) {
+            handleEditPayment(p);
+          } else {
+            setPaymentToEdit(null);
+            setClientId(invoiceDoc.clientOrLeadId || '');
+            setFormOpen(true);
+          }
+        }}
+        onDelete={(invoiceDoc) => {
+          const p = payments.find(item => item.quotationId === invoiceDoc.id || item.id === invoiceDoc.id);
+          if (p) {
+            handleDelete(p.id, false);
+          } else {
+            deletePayment(invoiceDoc.id);
+          }
+        }}
       />
 
     </div>

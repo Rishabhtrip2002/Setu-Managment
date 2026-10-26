@@ -1693,48 +1693,47 @@ export const CRMProvider = ({ children }) => {
       }
       return q;
     }));
+
+    // If quotation is linked to a payment, sync payment total, title & renewalCost
+    setPayments(prev => prev.map(p => {
+      if (p.quotationId === quoteId) {
+        const newTotal = updatedData.total !== undefined ? Number(updatedData.total) : p.totalAmount;
+        const newRenewal = updatedData.renewalPrice !== undefined ? Number(updatedData.renewalPrice) : p.renewalCost;
+        const paidAmt = p.instalments?.filter(i => i.status === 'Paid').reduce((sum, item) => sum + item.amount, 0) || 0;
+        const updatedP = {
+          ...p,
+          totalAmount: newTotal,
+          balanceRemaining: Math.max(0, newTotal - paidAmt),
+          quoteTitle: updatedData.title || p.quoteTitle,
+          renewalCost: newRenewal,
+          updatedAt: new Date().toISOString()
+        };
+        saveFirestoreDoc('payments', p.id, updatedP);
+        return updatedP;
+      }
+      return p;
+    }));
   };
 
-  const updateQuotationStatus = (quoteId, status) => {
-    let targetQuote = null;
-    setQuotations(prev => prev.map(q => {
-      if (q.id === quoteId) {
-        const updated = { 
-          ...q, 
-          status,
-          acceptedAt: status === 'Accepted' ? (q.acceptedAt || new Date().toISOString()) : q.acceptedAt
-        };
-        targetQuote = updated;
-        saveFirestoreDoc('quotations', updated.id, updated);
-        if (status === 'Sent') {
-          sendQuotationWhatsApp(updated);
-        }
-        // Sync to lead
-        if (updated.type === 'lead' || updated.clientOrLeadId?.startsWith('L-')) {
-          saveLeadQuotationJSON(updated.clientOrLeadId, updated);
-        }
-        return updated;
-      }
-      return q;
-    }));
-
-    // If accepted, invoke single idempotent Won conversion (Unifies Lead Won and Quote Acceptance)
-    if (status === 'Accepted' && targetQuote) {
-      if (targetQuote.type === 'lead' || targetQuote.clientOrLeadId?.startsWith('L-') || targetQuote.originatingLeadId) {
-        convertWonLeadToClient(targetQuote.clientOrLeadId || targetQuote.originatingLeadId, quoteId);
-      } else if (targetQuote.type === 'client') {
-        const client = clients.find(c => c.id === targetQuote.clientOrLeadId);
-        if (client) {
-          createPaymentRecordForQuotation(targetQuote, client);
-        }
-      }
-    }
+  const updateQuotationStatus = (quoteId, newStatus) => {
+    updateQuotation(quoteId, { status: newStatus });
   };
 
   const deleteQuotation = (quoteId) => {
-    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Super Admin') return false;
     setQuotations(prev => prev.filter(q => q.id !== quoteId));
     deleteFirestoreDoc('quotations', quoteId);
+
+    // Also remove any linked payment in payments
+    setPayments(prev => {
+      const remaining = prev.filter(p => p.quotationId !== quoteId);
+      prev.forEach(p => {
+        if (p.quotationId === quoteId) {
+          deleteFirestoreDoc('payments', p.id);
+        }
+      });
+      return remaining;
+    });
+
     return true;
   };
 
@@ -1951,10 +1950,494 @@ export const CRMProvider = ({ children }) => {
   };
 
   const deletePayment = (paymentId) => {
-    if (currentUser?.role !== 'Admin' && currentUser?.role !== 'Super Admin') return false;
+    let linkedQuoteId = null;
+    let clientId = null;
+    const target = payments.find(p => p.id === paymentId);
+    if (target) {
+      linkedQuoteId = target.quotationId;
+      clientId = target.clientId;
+    }
+
     setPayments(prev => prev.filter(p => p.id !== paymentId));
     deleteFirestoreDoc('payments', paymentId);
+
+    // If there is a linked invoice in quotations that belongs to this payment, delete it as well!
+    if (linkedQuoteId) {
+      setQuotations(prev => prev.filter(q => q.id !== linkedQuoteId));
+      deleteFirestoreDoc('quotations', linkedQuoteId);
+    }
+
+    // Clean up pending reminders associated with this payment's client
+    if (clientId) {
+      setReminders(prev => {
+        const filtered = prev.filter(r => !(r.clientId === clientId && target?.instalments?.some(inst => inst.amount === r.amount)));
+        return filtered;
+      });
+    }
+
     return true;
+  };
+
+  // Record 1st Payment & Deal Agreement for Won Leads / New Clients
+  const recordFirstPaymentDeal = ({
+    leadId = null,
+    clientId = null,
+    clientName = '',
+    companyName = '',
+    phone = '',
+    email = '',
+    address = '',
+    totalAmount = 0,
+    advanceAmount = 0,
+    subscriptionDurationMonths = 12,
+    renewalCost = 0,
+    nextInstallmentDate = '',
+    productDescription = '',
+    items = [],
+    paymentMethod = 'UPI',
+    transactionRef = '',
+    paymentDate = getTodayDateString(),
+    isAdvanceCollected = true,
+    customInstalments = null,
+    notes = '',
+    sendWhatsAppReceipt = true
+  }) => {
+    const today = getTodayDateString();
+    const isoNow = new Date().toISOString();
+    const numTotal = Math.max(0, Number(totalAmount) || 0);
+    const numAdvance = Math.max(0, Number(advanceAmount) || 0);
+    const numDuration = Math.max(1, Number(subscriptionDurationMonths) || 12);
+    const numRenewal = Math.max(0, Number(renewalCost) || 0);
+    const cleanPhone = (phone || '').trim();
+    const normPhone = normalizePhoneNumber(cleanPhone);
+
+    // Calculate subscription validity and renewal due date
+    const startDate = paymentDate || today;
+    const startObj = new Date(startDate);
+    const renewalObj = new Date(startObj);
+    renewalObj.setMonth(renewalObj.getMonth() + numDuration);
+    const pad = (n) => String(n).padStart(2, '0');
+    const renewalDueDate = `${renewalObj.getFullYear()}-${pad(renewalObj.getMonth() + 1)}-${pad(renewalObj.getDate())}`;
+
+    // 1. Resolve or Create Client
+    let targetClient = null;
+    if (clientId) {
+      targetClient = clients.find(c => c.id === clientId);
+    }
+    if (!targetClient && leadId) {
+      targetClient = clients.find(c => 
+        c.originatingLeadId === leadId ||
+        (normPhone && normPhone.length >= 8 && normalizePhoneNumber(c.phone) === normPhone) ||
+        (email && c.email && c.email.toLowerCase().trim() === email.toLowerCase().trim())
+      );
+    }
+    if (!targetClient && normPhone && normPhone.length >= 8) {
+      targetClient = clients.find(c => normalizePhoneNumber(c.phone) === normPhone);
+    }
+
+    if (!targetClient) {
+      // Create fresh Client record
+      const newClientId = `C-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 90 + 10)}`;
+      targetClient = {
+        id: newClientId,
+        name: (clientName || 'Valued Client').trim(),
+        phone: cleanPhone,
+        normalizedPhone: normPhone,
+        email: (email || '').trim(),
+        companyName: (companyName || clientName || 'Client Company').trim(),
+        address: (address || '').trim(),
+        source: 'Won Deal Conversion',
+        notes: notes || `Client converted on 1st payment deal onboarding.`,
+        originatingLeadId: leadId || null,
+        convertedDate: today,
+        convertedAt: isoNow,
+        subscriptionDurationMonths: numDuration,
+        renewalCost: numRenewal,
+        renewalDueDate: renewalDueDate,
+        subscriptionStartDate: startDate,
+        totalContractValue: numTotal,
+        convertedBy: {
+          id: currentUser?.employeeId || currentUser?.uid || 'user',
+          name: currentUser?.name || 'Super Admin'
+        }
+      };
+      setClients(prev => [...prev, targetClient]);
+      saveFirestoreDoc('clients', targetClient.id, targetClient);
+    } else {
+      // Update existing Client record with deal terms
+      const updatedClient = {
+        ...targetClient,
+        companyName: (companyName || targetClient.companyName || targetClient.name || '').trim(),
+        address: (address || targetClient.address || '').trim(),
+        subscriptionDurationMonths: numDuration,
+        renewalCost: numRenewal,
+        renewalDueDate: renewalDueDate,
+        subscriptionStartDate: startDate,
+        totalContractValue: numTotal,
+        updatedAt: isoNow
+      };
+      targetClient = updatedClient;
+      setClients(prev => prev.map(c => c.id === updatedClient.id ? updatedClient : c));
+      saveFirestoreDoc('clients', updatedClient.id, updatedClient);
+    }
+
+    // 2. Update Lead if leadId exists (Ensure Won status & link client)
+    const matchingLead = leadId ? leads.find(l => l.id === leadId) : (normPhone ? leads.find(l => normalizePhoneNumber(l.phone) === normPhone) : null);
+    if (matchingLead) {
+      const updatedLead = {
+        ...matchingLead,
+        status: 'Won',
+        convertedClientId: targetClient.id,
+        wonAt: matchingLead.wonAt || isoNow,
+        dealValue: numTotal,
+        advancePaid: numAdvance,
+        subscriptionDurationMonths: numDuration,
+        renewalCost: numRenewal,
+        updatedAt: isoNow
+      };
+      setLeads(prev => prev.map(l => l.id === matchingLead.id ? updatedLead : l));
+      saveFirestoreDoc('leads', matchingLead.id, updatedLead);
+    }
+
+    // 3. Create Official Quotation/Invoice Record
+    const docDate = paymentDate || today;
+    const invoiceDocId = generateDocumentNumber(docDate, false);
+    const invoiceTitle = productDescription || `${targetClient.companyName || targetClient.name} - Software & Implementation`;
+    const invoiceItems = Array.isArray(items) && items.length > 0 ? items : [
+      {
+        description: invoiceTitle,
+        breakdown: `${numDuration} Months Subscription & Services`,
+        qty: 1,
+        rate: numTotal
+      }
+    ];
+
+    const invoiceDoc = {
+      id: invoiceDocId,
+      docNumber: invoiceDocId,
+      docType: 'Invoice',
+      title: invoiceTitle,
+      date: docDate,
+      clientOrLeadId: targetClient.id,
+      type: 'client',
+      clientName: targetClient.name,
+      companyName: targetClient.companyName,
+      address: targetClient.address || address || '',
+      phone: targetClient.phone,
+      email: targetClient.email,
+      items: invoiceItems,
+      total: numTotal,
+      advancePaid: numAdvance,
+      renewalPrice: numRenewal,
+      subscriptionDurationMonths: numDuration,
+      status: 'Accepted',
+      originatingLeadId: matchingLead?.id || null,
+      acceptedAt: isoNow,
+      notes: notes || 'Official Contract & 1st Payment Agreement'
+    };
+    setQuotations(prev => [...prev, invoiceDoc]);
+    saveFirestoreDoc('quotations', invoiceDoc.id, invoiceDoc);
+
+    // 4. Build Installments Schedule
+    let paymentInstalments = [];
+    const balance = Math.max(0, numTotal - numAdvance);
+
+    // Part 1: Advance
+    const advanceInstalment = {
+      id: `INST-${Date.now()}-1-${Math.floor(Math.random() * 1000)}`,
+      amount: numAdvance,
+      dueDate: paymentDate || today,
+      paidDate: isAdvanceCollected ? (paymentDate || today) : null,
+      status: isAdvanceCollected ? 'Paid' : 'Pending',
+      paymentMethod: paymentMethod || 'UPI',
+      transactionRef: transactionRef || '',
+      collectedBy: isAdvanceCollected ? (currentUser?.name || 'Super Admin') : null,
+      collectedById: isAdvanceCollected ? (currentUser?.employeeId || currentUser?.uid || '') : null,
+      notes: '1st Payment / Advance'
+    };
+    paymentInstalments.push(advanceInstalment);
+
+    // Remaining Balance Installments (if balance > 0)
+    if (balance > 0) {
+      if (Array.isArray(customInstalments) && customInstalments.length > 0) {
+        customInstalments.forEach((ci, idx) => {
+          paymentInstalments.push({
+            id: `INST-${Date.now()}-${idx + 2}-${Math.floor(Math.random() * 1000)}`,
+            amount: Number(ci.amount) || 0,
+            dueDate: ci.dueDate || nextInstallmentDate || today,
+            paidDate: null,
+            status: 'Pending',
+            notes: ci.notes || `Instalment Part ${idx + 2}`
+          });
+        });
+      } else {
+        // Single remaining installment due on nextInstallmentDate
+        paymentInstalments.push({
+          id: `INST-${Date.now()}-2-${Math.floor(Math.random() * 1000)}`,
+          amount: balance,
+          dueDate: nextInstallmentDate || today,
+          paidDate: null,
+          status: 'Pending',
+          notes: 'Remaining Balance Instalment'
+        });
+      }
+    }
+
+    // Compute Overall Schedule Status
+    const paidParts = paymentInstalments.filter(i => i.status === 'Paid').length;
+    let paymentStatus = 'Pending';
+    if (paidParts === paymentInstalments.length && numTotal > 0) {
+      paymentStatus = 'Paid in Full';
+    } else if (paidParts > 0) {
+      paymentStatus = 'Partial';
+    }
+
+    const newPayment = {
+      id: `P-${Date.now().toString().slice(-4)}${Math.floor(Math.random() * 90 + 10)}`,
+      clientId: targetClient.id,
+      clientName: targetClient.name,
+      companyName: targetClient.companyName,
+      quotationId: invoiceDoc.id,
+      quoteTitle: invoiceTitle,
+      totalAmount: numTotal,
+      balanceRemaining: isAdvanceCollected ? balance : numTotal,
+      status: paymentStatus,
+      createdAt: isoNow,
+      subscriptionDurationMonths: numDuration,
+      renewalCost: numRenewal,
+      renewalDueDate: renewalDueDate,
+      instalments: paymentInstalments
+    };
+
+    setPayments(prev => [...prev, newPayment]);
+    saveFirestoreDoc('payments', newPayment.id, newPayment);
+
+    // 5. Schedule Reminders for pending instalments
+    scheduleRemindersForInstalments(targetClient, paymentInstalments);
+
+    // 6. Send WhatsApp confirmation if requested and advance collected
+    if (sendWhatsAppReceipt && isAdvanceCollected && numAdvance > 0 && cleanPhone) {
+      const formattedAdv = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(numAdvance);
+      const formattedBal = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(balance);
+      const receiptText = compileTemplate('payment_received', {
+        clientName: targetClient.name,
+        amount: formattedAdv,
+        quoteTitle: invoiceTitle,
+        balance: formattedBal
+      });
+      addWhatsAppLog(cleanPhone, receiptText, 'outbound');
+    }
+
+    return {
+      success: true,
+      client: targetClient,
+      payment: newPayment,
+      quotation: invoiceDoc
+    };
+  };
+
+  // Update Existing Deal & Invoice (Edit Invoice / Bill)
+  const updateFirstPaymentDeal = ({
+    paymentId,
+    clientName = '',
+    companyName = '',
+    phone = '',
+    email = '',
+    address = '',
+    totalAmount = 0,
+    advanceAmount = 0,
+    subscriptionDurationMonths = 12,
+    renewalCost = 0,
+    nextInstallmentDate = '',
+    productDescription = '',
+    items = [],
+    paymentMethod = 'UPI',
+    transactionRef = '',
+    paymentDate = getTodayDateString(),
+    isAdvanceCollected = true,
+    customInstalments = null,
+    notes = '',
+    sendWhatsAppReceipt = false
+  }) => {
+    const today = getTodayDateString();
+    const isoNow = new Date().toISOString();
+    const numTotal = Math.max(0, Number(totalAmount) || 0);
+    const numAdvance = Math.max(0, Number(advanceAmount) || 0);
+    const numDuration = Math.max(1, Number(subscriptionDurationMonths) || 12);
+    const numRenewal = Math.max(0, Number(renewalCost) || 0);
+
+    const existingPayment = payments.find(p => p.id === paymentId);
+    if (!existingPayment) return { success: false, error: 'Payment record not found' };
+
+    // 1. Update Client Record
+    let updatedClient = null;
+    if (existingPayment.clientId) {
+      setClients(prev => prev.map(c => {
+        if (c.id === existingPayment.clientId) {
+          const startDate = paymentDate || c.subscriptionStartDate || today;
+          const startObj = new Date(startDate);
+          const renewalObj = new Date(startObj);
+          renewalObj.setMonth(renewalObj.getMonth() + numDuration);
+          const pad = (n) => String(n).padStart(2, '0');
+          const renewalDueDate = `${renewalObj.getFullYear()}-${pad(renewalObj.getMonth() + 1)}-${pad(renewalObj.getDate())}`;
+
+          const cMerged = {
+            ...c,
+            name: (clientName || c.name).trim(),
+            companyName: (companyName || c.companyName || clientName).trim(),
+            phone: (phone || c.phone).trim(),
+            email: (email || c.email).trim(),
+            address: (address || c.address).trim(),
+            subscriptionDurationMonths: numDuration,
+            renewalCost: numRenewal,
+            renewalDueDate,
+            totalContractValue: numTotal,
+            updatedAt: isoNow
+          };
+          updatedClient = cMerged;
+          saveFirestoreDoc('clients', c.id, cMerged);
+          return cMerged;
+        }
+        return c;
+      }));
+    }
+
+    // 2. Update Linked Quotation / Invoice Document
+    let updatedQuotation = null;
+    const invoiceTitle = productDescription || `${companyName || clientName} - Software & Implementation`;
+    const invoiceItems = Array.isArray(items) && items.length > 0 ? items : [
+      {
+        description: invoiceTitle,
+        breakdown: `${numDuration} Months Subscription & Services`,
+        qty: 1,
+        rate: numTotal
+      }
+    ];
+
+    if (existingPayment.quotationId) {
+      setQuotations(prev => prev.map(q => {
+        if (q.id === existingPayment.quotationId) {
+          const qMerged = {
+            ...q,
+            title: invoiceTitle,
+            items: invoiceItems,
+            total: numTotal,
+            advancePaid: numAdvance,
+            remaining: Math.max(0, numTotal - numAdvance),
+            renewalPrice: numRenewal,
+            renewalCost: numRenewal,
+            subscriptionDurationMonths: numDuration,
+            address: address || q.address,
+            phone: phone || q.phone,
+            email: email || q.email,
+            clientName: clientName || q.clientName,
+            notes: notes || q.notes,
+            updatedAt: isoNow
+          };
+          updatedQuotation = qMerged;
+          saveFirestoreDoc('quotations', q.id, qMerged);
+          return qMerged;
+        }
+        return q;
+      }));
+    }
+
+    // 3. Build updated Installments Schedule
+    let paymentInstalments = [];
+    const balance = Math.max(0, numTotal - numAdvance);
+    const prevInsts = existingPayment.instalments || [];
+    const prevFirst = prevInsts[0] || {};
+
+    const advanceInstalment = {
+      id: prevFirst.id || `INST-${Date.now()}-1`,
+      amount: numAdvance,
+      dueDate: paymentDate || prevFirst.dueDate || today,
+      paidDate: isAdvanceCollected ? (prevFirst.paidDate || paymentDate || today) : null,
+      status: isAdvanceCollected ? 'Paid' : 'Pending',
+      paymentMethod: paymentMethod || prevFirst.paymentMethod || 'UPI',
+      transactionRef: transactionRef || prevFirst.transactionRef || '',
+      collectedBy: isAdvanceCollected ? (prevFirst.collectedBy || currentUser?.name || 'Super Admin') : null,
+      collectedById: isAdvanceCollected ? (prevFirst.collectedById || currentUser?.employeeId || currentUser?.uid || '') : null,
+      notes: prevFirst.notes || '1st Payment / Advance'
+    };
+    paymentInstalments.push(advanceInstalment);
+
+    if (balance > 0) {
+      if (Array.isArray(customInstalments) && customInstalments.length > 0) {
+        customInstalments.forEach((ci, idx) => {
+          const prevMatched = prevInsts[idx + 1];
+          paymentInstalments.push({
+            id: prevMatched?.id || `INST-${Date.now()}-${idx + 2}`,
+            amount: Number(ci.amount) || 0,
+            dueDate: ci.dueDate || nextInstallmentDate || today,
+            paidDate: prevMatched?.status === 'Paid' ? prevMatched.paidDate : null,
+            status: prevMatched?.status === 'Paid' ? 'Paid' : 'Pending',
+            notes: ci.notes || `Instalment Part ${idx + 2}`
+          });
+        });
+      } else {
+        const prevSecond = prevInsts[1];
+        paymentInstalments.push({
+          id: prevSecond?.id || `INST-${Date.now()}-2`,
+          amount: balance,
+          dueDate: nextInstallmentDate || prevSecond?.dueDate || today,
+          paidDate: prevSecond?.status === 'Paid' ? prevSecond.paidDate : null,
+          status: prevSecond?.status === 'Paid' ? 'Paid' : 'Pending',
+          notes: prevSecond?.notes || 'Remaining Balance Instalment'
+        });
+      }
+    }
+
+    const paidParts = paymentInstalments.filter(i => i.status === 'Paid').length;
+    let paymentStatus = 'Pending';
+    if (paidParts === paymentInstalments.length && numTotal > 0) {
+      paymentStatus = 'Paid in Full';
+    } else if (paidParts > 0) {
+      paymentStatus = 'Partial';
+    }
+
+    const updatedPayment = {
+      ...existingPayment,
+      clientName: clientName || existingPayment.clientName,
+      companyName: companyName || existingPayment.companyName,
+      quoteTitle: invoiceTitle,
+      totalAmount: numTotal,
+      balanceRemaining: balance,
+      status: paymentStatus,
+      subscriptionDurationMonths: numDuration,
+      renewalCost: numRenewal,
+      instalments: paymentInstalments,
+      updatedAt: isoNow
+    };
+
+    setPayments(prev => prev.map(p => p.id === paymentId ? updatedPayment : p));
+    saveFirestoreDoc('payments', paymentId, updatedPayment);
+
+    // Also update reminders
+    if (updatedClient) {
+      scheduleRemindersForInstalments(updatedClient, paymentInstalments.filter(i => i.status === 'Pending'));
+    }
+
+    return {
+      success: true,
+      client: updatedClient,
+      payment: updatedPayment,
+      quotation: updatedQuotation
+    };
+  };
+
+  const updatePayment = (paymentId, updatedData) => {
+    let updatedRecord = null;
+    setPayments(prev => prev.map(p => {
+      if (p.id === paymentId) {
+        const merged = { ...p, ...updatedData, id: p.id, updatedAt: new Date().toISOString() };
+        updatedRecord = merged;
+        saveFirestoreDoc('payments', p.id, merged);
+        return merged;
+      }
+      return p;
+    }));
+    return updatedRecord;
   };
 
   // Custom function to add manual payment tracking record
@@ -2427,7 +2910,10 @@ export const CRMProvider = ({ children }) => {
       generateDocumentNumber,
       recordPaymentPayment,
       deletePayment,
+      updatePayment,
       addCustomPayment,
+      recordFirstPaymentDeal,
+      updateFirstPaymentDeal,
       triggerManualReminder,
       triggerClientReminderImmediately,
       deleteReminder,

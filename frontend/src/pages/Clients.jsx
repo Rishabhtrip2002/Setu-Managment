@@ -504,6 +504,13 @@ const Clients = ({ initialClientId = '', addQuoteTrigger, addPaymentTrigger }) =
                       <div className="py-12 border border-dashed border-slate-200 rounded-2xl flex flex-col items-center justify-center text-slate-400 bg-orange-50/20 text-center px-4">
                         <IndianRupee className="w-8 h-8 mb-2 text-orange-400" />
                         <span className="text-xs font-bold text-slate-700">No payment schedules drafted</span>
+                        <button
+                          onClick={() => addPaymentTrigger(activeClient.id, { client: activeClient })}
+                          className="mt-3 flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-white bg-gradient-to-r from-orange-500 to-amber-500 rounded-xl hover-scale shadow-xs cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Record 1st Payment & Schedule</span>
+                        </button>
                       </div>
                     )}
                   </div>
